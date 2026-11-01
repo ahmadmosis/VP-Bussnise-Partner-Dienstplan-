@@ -1,0 +1,803 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>BP Business Plan Dienstplan</title>
+<meta name="description" content="Dienstplan für die Fahrer in Paderborn">
+<meta name="theme-color" content="#1b2230">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BP Dienstplan">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<style>
+/* Layout: Leitstand-Raster. Fahrer als Zeilen, Tage als Spalten, Bearbeiten-Leiste unten. */
+:root{
+  --bg:#f3f4f1; --surface:#ffffff; --surface2:#eceee9; --fg:#1b2230; --muted:#667085; --line:#d9dcd5;
+  --accent:#1f4fd8; --accent-fg:#ffffff; --danger:#b42318; --ok:#1a7f4b;
+  --fr-bg:#fdf0c9; --fr-fg:#6b4a00;
+  --na-bg:#dfe3fb; --na-fg:#26308a;
+  --fl-bg:#d3f0ea; --fl-fg:#0b5a4e;
+  --pt-bg:#f8dde6; --pt-fg:#8a1f48;
+  --off-bg:#ebece8; --wk:#f6f1e4;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",sans-serif;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12161d; --surface:#1a202a; --surface2:#222a36; --fg:#e6e9ef; --muted:#97a0b0; --line:#2e3746;
+  --accent:#7aa2ff; --accent-fg:#0d1320; --danger:#ff8b7e; --ok:#58d08f;
+  --fr-bg:#4a3a0e; --fr-fg:#ffdf8a;
+  --na-bg:#272f63; --na-fg:#c4ccff;
+  --fl-bg:#12453c; --fl-fg:#9be6d6;
+  --pt-bg:#561d36; --pt-fg:#ffc2d6;
+  --off-bg:#262d39; --wk:#1f2631; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#12161d; --surface:#1a202a; --surface2:#222a36; --fg:#e6e9ef; --muted:#97a0b0; --line:#2e3746;
+  --accent:#7aa2ff; --accent-fg:#0d1320; --danger:#ff8b7e; --ok:#58d08f;
+  --fr-bg:#4a3a0e; --fr-fg:#ffdf8a;
+  --na-bg:#272f63; --na-fg:#c4ccff;
+  --fl-bg:#12453c; --fl-fg:#9be6d6;
+  --pt-bg:#561d36; --pt-fg:#ffc2d6;
+  --off-bg:#262d39; --wk:#1f2631; color-scheme:dark;}
+*{box-sizing:border-box}
+html{padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
+body{margin:0;font-size:14px;background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:14px;line-height:1.45;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px 0}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1500px;margin:0 auto}
+header{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:flex-end;justify-content:space-between;margin-bottom:14px}
+h1{font-size:22px;margin:0;letter-spacing:-.01em;text-wrap:balance}
+.sub{color:var(--muted);font-size:13px}
+.hr{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:6px;padding:7px 12px;min-height:34px}
+.btn:hover{background:var(--surface2)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:600}
+.btn.danger{color:var(--danger)}
+.btn.sm{padding:3px 9px;min-height:28px;font-size:13px}
+.month{display:flex;align-items:center;gap:6px}
+.month b{min-width:130px;text-align:center;font-size:15px}
+.status{font-size:12px;color:var(--muted);font-family:var(--mono)}
+.status.ok{color:var(--ok)}
+nav.tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:12px}
+nav.tabs button{border:0;background:none;padding:9px 16px;border-bottom:3px solid transparent;color:var(--muted);font-weight:500}
+nav.tabs button[aria-selected="true"]{color:var(--fg);border-bottom-color:var(--accent);font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;margin-bottom:10px;font-size:12px;color:var(--muted);align-items:center}
+.chip{display:inline-block;padding:1px 8px;border-radius:4px;font-size:12px;font-weight:500}
+.fr{background:var(--fr-bg);color:var(--fr-fg)} .na{background:var(--na-bg);color:var(--na-fg)}
+.fl{background:var(--fl-bg);color:var(--fl-fg)} .pt{background:var(--pt-bg);color:var(--pt-fg)}
+.scroll{overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface);max-height:calc(100vh - 230px);min-height:240px}
+table.grid{border-collapse:separate;border-spacing:0;font-size:12px}
+.grid th,.grid td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:0;text-align:center;white-space:nowrap}
+.grid thead th{position:sticky;background:var(--surface);z-index:3;font-weight:600;height:24px}
+.grid thead tr:nth-child(1) th{top:0}
+.grid thead tr:nth-child(2) th{top:24px;font-weight:400;color:var(--muted)}
+.grid th.name,.grid td.name{position:sticky;left:0;z-index:2;background:var(--surface);text-align:left;min-width:150px;max-width:150px;padding:0 10px;font-weight:500;overflow:hidden;text-overflow:ellipsis}
+.grid thead th.name{z-index:4}
+.grid td.name{height:30px;border-left:4px solid transparent}
+.grid td.name.fr{border-left-color:var(--fr-fg)} .grid td.name.na{border-left-color:var(--na-fg)}
+.grid td.name.fl{border-left-color:var(--fl-fg)} .grid td.name.pt{border-left-color:var(--pt-fg)}
+.grid td.name{background:var(--surface);color:var(--fg)}
+.grid .wk{background:var(--wk)}
+.grid thead th.wk{background:var(--wk)}
+.grid tr.gl td{background:var(--surface2);text-align:left;padding:2px 10px;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;position:sticky;left:0}
+.cell{min-width:56px;width:56px;height:30px;padding:0}
+.cell button{display:block;width:100%;height:30px;border:0;background:none;font-family:var(--mono);font-size:11.5px;position:relative;border-radius:0}
+.cell button:hover{outline:2px solid var(--accent);outline-offset:-2px}
+.cell.sel button{outline:2px solid var(--accent);outline-offset:-2px;box-shadow:inset 0 0 0 2px var(--surface)}
+.cell.w-fr button{background:var(--fr-bg);color:var(--fr-fg)} .cell.w-na button{background:var(--na-bg);color:var(--na-fg)}
+.cell.w-fl button{background:var(--fl-bg);color:var(--fl-fg)} .cell.w-pt button{background:var(--pt-bg);color:var(--pt-fg)}
+.cell.off button{background:repeating-linear-gradient(135deg,var(--off-bg) 0 5px,transparent 5px 10px);color:var(--muted)}
+.cell.none button{color:var(--line)}
+.cell button.ov::after{content:"";position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:var(--accent)}
+.grid tfoot td{background:var(--surface2);font-family:var(--mono);font-size:11.5px;height:24px;color:var(--muted)}
+.grid tfoot td.name{background:var(--surface2);font-family:var(--sans);font-size:12px}
+.editor{position:sticky;bottom:0;margin-top:12px;background:var(--surface);border:1px solid var(--accent);border-radius:8px;padding:12px 14px;
+  margin-bottom:max(12px,env(safe-area-inset-bottom,0px));box-shadow:0 -6px 24px rgba(0,0,0,.12);z-index:6}
+.editor h3{margin:0 0 8px;font-size:14px;display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;justify-content:space-between}
+.editor h3 span{font-weight:400;color:var(--muted);font-size:12.5px}
+.erow{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center}
+.erow .sep{width:1px;height:24px;background:var(--line)}
+.erow label{display:flex;align-items:center;gap:6px;font-size:13px}
+input[type=time],input[type=text],select,textarea{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:5px 8px;min-height:32px}
+input[type=text],select{width:100%}
+.hint{color:var(--muted);font-size:12.5px;margin:10px 0 0}
+.note{margin-top:10px;padding:8px 12px;border-radius:6px;font-size:13px;border:1px solid var(--line);background:var(--surface)}
+.note.ok{border-color:var(--ok);color:var(--ok)}
+.note.warn{border-color:var(--danger)}
+.note ul{margin:4px 0 0;padding-left:18px}
+/* Tage */
+.days{display:grid;gap:10px;max-width:900px}
+.day{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 14px}
+.day.wkd{background:var(--wk)}
+.day h3{margin:0 0 6px;font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.day h3 small{font-weight:400;color:var(--muted);font-size:12px;margin-left:8px}
+.line{display:grid;grid-template-columns:96px 112px 1fr;gap:6px 10px;align-items:baseline;padding:3px 0;font-size:13px}
+.line .t{font-family:var(--mono);font-size:12.5px}
+.line.offl{color:var(--muted)}
+.day textarea{width:100%;margin-top:8px;min-height:34px;resize:vertical}
+@media (max-width:560px){.line{grid-template-columns:1fr}.line .t{margin-top:-2px}}
+/* Fahrer */
+.tw{overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+table.dr{border-collapse:collapse;width:100%;min-width:860px}
+.dr th{font-size:12px;text-align:left;color:var(--muted);font-weight:600;padding:8px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.dr td{padding:5px 6px;border-bottom:1px solid var(--line)}
+.dr td.c{text-align:center}
+.dr input[type=checkbox]{width:18px;height:18px}
+.row-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:max(20px,env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:6px;font-size:13px;z-index:20;max-width:90vw}
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Dienstplan Paderborn</h1>
+      <div class="sub" id="sub"></div>
+    </div>
+    <div class="hr">
+      <div class="month">
+        <button class="btn sm" id="prev" aria-label="Vorheriger Monat">‹</button>
+        <b id="mlabel"></b>
+        <button class="btn sm" id="next" aria-label="Nächster Monat">›</button>
+      </div>
+      <button class="btn primary" id="export">Excel exportieren</button>
+      <button class="btn" id="bk-save">Sicherung speichern</button>
+      <button class="btn" id="bk-load">Sicherung laden</button>
+      <input type="file" id="bk-file" accept=".json,application/json" hidden>
+      <span class="status" id="status">lädt …</span>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button role="tab" data-tab="plan" aria-selected="true">Plan</button>
+    <button role="tab" data-tab="tage" aria-selected="false">Tage</button>
+    <button role="tab" data-tab="fahrer" aria-selected="false">Fahrer</button>
+  </nav>
+
+  <main id="main"></main>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+
+<script>
+(function(){
+'use strict';
+var DAY_S=['So','Mo','Di','Mi','Do','Fr','Sa'];
+var DAY_L=['Sonntag','Montag','Dienstag','Mittwoch','Donnerstag','Freitag','Samstag'];
+var MONTHS=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+var GROUPS=[{k:'Frühschicht',c:'fr'},{k:'Nachtschicht',c:'na'},{k:'Flexibel',c:'fl'},{k:'Part-time',c:'pt'}];
+var ANCHOR=Date.UTC(2026,9,26); /* Montag 26.10.2026 = Beginn der Woche, deren Sonntag der 01.11. ist (Rotationsstart) */
+var OFFLBL={off:'Frei',U:'Urlaub',K:'Krank',rot:'Frei (Sonntag-Rotation)',auto:'Frei (Wochenfrei)'};
+
+var ROTMAP={d1:'on',d2:'off',d3:'on',d4:'off',d5:'on',d6:'off',d7:'on',d8:'off',d9:'on',d10:'off',d11:'on',d12:'off',d13:'on',d14:'off',d15:'on'};
+function D(id,name,group,time,wtime,wk,rot){return {id:id,name:name,group:group,time:time,wtime:wtime||'',wkOnly:!!wk,wdays:wk?[4,5,6,0]:[],rot:rot||'none',autoOff:!wk,offPref:0,sunOff:wk?0:2};}
+function defaults(){
+  var st={ver:10,drivers:[
+    D('d1','Farhad','Frühschicht','06:00–18:00','',false,'on'),
+    D('d2','Msalam','Frühschicht','06:00–18:00','',false,'off'),
+    D('d3','Asim','Frühschicht','06:00–18:00','',false,'on'),
+    D('d4','Osama','Frühschicht','06:00–18:00','',false,'off'),
+    D('d5','Imad','Frühschicht','06:00–18:00','',false,'on'),
+    D('d6','Bahaa','Nachtschicht','18:00–06:00','',false,'off'),
+    D('d7','Peter','Nachtschicht','18:00–06:00','',false,'on'),
+    D('d8','Ahmad Abu Zaid','Nachtschicht','18:00–06:00','',false,'off'),
+    D('d9','Abu Taha','Nachtschicht','18:00–06:00','',false,'on'),
+    D('d10','Haroun','Nachtschicht','18:00–06:00','',false,'off'),
+    D('d11','Idris','Nachtschicht','18:00–06:00','',false,'on'),
+    D('d13','Ahmad Mosis','Flexibel','12:00–00:00','17:00–05:00',false,'on'),
+    D('d14','Thabet','Flexibel','13:00–01:00','17:00–05:00',false,'off'),
+    D('d15','Khaled','Flexibel','14:00–02:00','17:00–05:00',false,'on'),
+    D('d16','Jamal','Part-time','18:00–06:00','',true,'none')
+  ],months:{}};
+  seed(st);upgrade7(st);upgrade10(st);return st;
+}
+var state=defaults();
+var ui={tab:'plan',y:2026,m:10,sel:null};
+var dirty=false,loaded=false,dbDoc=null,saveTimer=null;
+
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function pad(n){return (n<10?'0':'')+n;}
+function ymKey(y,m){return y+'-'+pad(m+1);}
+function dim(y,m){return new Date(Date.UTC(y,m+1,0)).getUTCDate();}
+function dow(y,m,d){return new Date(Date.UTC(y,m,d)).getUTCDay();}
+function dstr(y,m,d){return pad(d)+'.'+pad(m+1)+'.'+y;}
+function gcls(g){for(var i=0;i<GROUPS.length;i++)if(GROUPS[i].k===g)return GROUPS[i].c;return 'fl';}
+function mdata(y,m,create){var k=ymKey(y,m);if(!state.months[k]){if(!create)return {cells:{},notes:{}};state.months[k]={cells:{},notes:{}};}return state.months[k];}
+function fmt(t){
+  return String(t).split(/[–-]/).map(function(x){var p=x.trim().split(':');var h=pad(parseInt(p[0],10));return (p[1]&&p[1]!=='00')?h+':'+p[1]:h;}).join('–');
+}
+function startH(t){return parseInt(String(t).slice(0,2),10);}
+function gidx(g){for(var i=0;i<GROUPS.length;i++)if(GROUPS[i].k===g)return i;return 2;}
+function slotOf(t){var h=startH(t);if(h>=4&&h<12)return 0;if(h>=12&&h<17)return 1;return 2;}
+function validTime(t){return /^\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2}$/.test(t);}
+function normTime(t){var p=t.split(/\s*[-–]\s*/);function f(x){var q=x.split(':');return pad(parseInt(q[0],10))+':'+q[1];}return f(p[0])+'–'+f(p[1]);}
+
+/* Fahrer mit "Letzter Arbeitstag" (lastDay, JJJJ-MM-TT) arbeiten danach nicht mehr */
+/* Plan beginnt am state.start (JJJJ-MM-TT): frühere Tage dieses Monats werden nicht angezeigt */
+function fd(y,m){var s=state.start;if(!s)return 1;var p=s.split('-');return (+p[0]===y&&+p[1]-1===m)?Math.max(1,+p[2]):1;}
+function isActive(dr,y,m,d){return !dr.lastDay||Date.UTC(y,m,d)<=Date.parse(dr.lastDay+'T00:00:00Z');}
+function sunDate(n){return new Date(ANCHOR+(7*n+6)*864e5);}
+function activeSun(dr,n){var t=sunDate(n);return isActive(dr,t.getUTCFullYear(),t.getUTCMonth(),t.getUTCDate());}
+var CAP=2; /* höchstens so viele Fahrer pro Gruppe gleichzeitig frei */
+/* Wochen laufen Montag bis Sonntag. Woche 0 ist 26.10.–01.11.2026. */
+function weekNo(y,m,d){return Math.floor(Math.round((Date.UTC(y,m,d)-ANCHOR)/864e5)/7);}
+function sundayOn(dr,n){if(!dr.rot||dr.rot==='none')return true;var even=((n%2)+2)%2===0;return dr.rot==='on'?even:!even;}
+/* Sonntag der Woche n: von Hand geändert (Feld im Plan) oder nach Rotation */
+function sundayWorks(dr,n){
+  var dt=new Date(ANCHOR+(7*n+6)*864e5),y=dt.getUTCFullYear(),m=dt.getUTCMonth(),d=dt.getUTCDate();
+  var mo=state.months[ymKey(y,m)],ov=mo&&mo.cells[dr.id+'|'+d];
+  if(ov)return ov.k==='t'||ov.k==='w';
+  var inf=sunInfo(y,m).off[dr.id];
+  return !(inf&&inf[d]);
+}
+/* Freie Sonntage: pro Gruppe sind sonntags höchstens CAP (2) Fahrer frei. Jeder Fahrer möchte "sunOff" freie Sonntage pro Monat (Standard 2);
+   reicht der Platz nicht, wird fair gekürzt. Die Verteilung vermeidet freie Sonntage direkt hintereinander.
+   Von Hand gesetzte Sonntage (Dienst/Frei im Plan) bleiben unverändert und zählen mit. */
+var sunCache={};
+function sunInfo(y,m){
+  var key=y+'-'+m;if(sunCache[key])return sunCache[key];
+  var S=[];for(var d=fd(y,m);d<=dim(y,m);d++)if(dow(y,m,d)===0)S.push(d);
+  var cells=mdata(y,m).cells,off={},forced={},drs=sortedDrivers();
+  drs.forEach(function(dr){
+    off[dr.id]={};forced[dr.id]={};
+    S.forEach(function(d){var ov=cells[dr.id+'|'+d];if(ov){forced[dr.id][d]=1;if(!(ov.k==='t'||ov.k==='w'))off[dr.id][d]=1;}});
+  });
+  GROUPS.forEach(function(g){
+    var mem=drs.filter(function(x){return x.group===g.k&&(x.sunOff===undefined?2:x.sunOff)>0;});
+    if(!mem.length)return;
+    var act={},need={},given={},load=S.map(function(){return 0;}),D=0;
+    mem.forEach(function(dr){
+      act[dr.id]=S.filter(function(d){return isActive(dr,y,m,d);});
+      given[dr.id]=Object.keys(off[dr.id]).length;
+      need[dr.id]=Math.max(0,Math.round((dr.sunOff===undefined?2:dr.sunOff)*act[dr.id].length/S.length)-given[dr.id]);
+      D+=need[dr.id];
+    });
+    S.forEach(function(d,j){mem.forEach(function(dr){if(off[dr.id][d])load[j]++;});});
+    var room=S.map(function(d,j){return Math.max(0,CAP-load[j]);}),fill=S.map(function(){return 0;}),left=Math.min(D,room.reduce(function(a,b){return a+b;},0));
+    while(left>0){
+      var bj=-1;S.forEach(function(d,j){if(fill[j]<room[j]&&(bj<0||fill[j]<fill[bj]))bj=j;});
+      if(bj<0)break;fill[bj]++;left--;
+    }
+    S.forEach(function(d,j){
+      for(var c=0;c<fill[j];c++){
+        var best=null,bs=1e9;
+        mem.forEach(function(dr,i){
+          if(need[dr.id]<=0||forced[dr.id][d]||off[dr.id][d]||act[dr.id].indexOf(d)<0)return;
+          var adj=((j>0&&off[dr.id][S[j-1]])||(j<S.length-1&&off[dr.id][S[j+1]]))?1:0;
+          var sc=given[dr.id]*10+adj*4+((i+2*j)%mem.length)*0.1;
+          if(sc<bs){bs=sc;best=dr;}
+        });
+        if(!best)break;
+        off[best.id][d]=1;given[best.id]++;need[best.id]--;
+      }
+    });
+  });
+  return sunCache[key]={off:off};
+}
+/* Wer den Sonntag arbeitet, bekommt in dieser Woche einen freien Tag zwischen Mo und Do (1-4). Wer Sonntag frei hat, braucht keinen weiteren. */
+function offDayFor(dr,n){
+  if(dr.wkOnly||dr.autoOff===false||!activeSun(dr,n)||!sundayWorks(dr,n))return -1;
+  if(dr.offPref>=1&&dr.offPref<=4)return dr.offPref;
+  /* Gruppe gleichmäßig auf Mo–Do verteilen: feste Wunschtage zuerst, der Rest verteilt sich mit Abstand auf die übrigen Tage. */
+  var grp=state.drivers.filter(function(x){return x.group===dr.group&&!x.wkOnly&&x.autoOff!==false&&activeSun(x,n)&&sundayWorks(x,n);});
+  var peers=grp.filter(function(x){return !(x.offPref>=1&&x.offPref<=4);});
+  var taken=grp.filter(function(x){return x.offPref>=1&&x.offPref<=4;}).map(function(x){return x.offPref;});
+  var free=[1,2,3,4].filter(function(x){return taken.indexOf(x)<0;});
+  if(!free.length)free=[1,2,3,4];
+  var s=((n%free.length)+free.length)%free.length;
+  free=free.slice(s).concat(free.slice(0,s));
+  var k=peers.length,r=peers.indexOf(dr);
+  return free[k<=free.length?Math.floor(r*free.length/k):r%free.length];
+}
+/* Änderung 01.11.: Bahaa -> Mohammad Najm, Osama arbeitet bis 17.11., neuer Teilzeit-Fahrer Mo-Do */
+function upgrade7(s){
+  s.drivers.forEach(function(d){
+    if(d.id==='d6'||d.name==='Bahaa')d.name='Mohammad Najm';
+    if(d.id==='d4'&&!d.lastDay)d.lastDay='2026-11-17';
+  });
+  if(!s.drivers.some(function(d){return d.id==='d17';})){
+    var t=D('d17','Mohammad Mazloum','Part-time','06:00–18:00','',true,'none');t.wdays=[1,2,3,4];s.drivers.push(t);
+  }
+}
+/* Änderung 01.11. (2): Thaer entfernt, Teilzeit 2 heißt Mohammad Mazloum */
+function upgrade8(s){
+  var gone={};
+  s.drivers=s.drivers.filter(function(d){if(d.id==='d12'||d.name==='Thaer'){gone[d.id]=1;return false;}return true;});
+  Object.keys(s.months).forEach(function(k){
+    var c=s.months[k].cells||{};
+    Object.keys(c).forEach(function(key){if(gone[key.split('|')[0]])delete c[key];});
+  });
+  s.drivers.forEach(function(d){if(d.id==='d17'&&d.name==='Teilzeit 2')d.name='Mohammad Mazloum';});
+}
+/* Änderung 01.11. (3): Jamal arbeitet 18:00–06:00 */
+function upgrade9(s){s.drivers.forEach(function(d){if(d.id==='d16'&&d.time==='06:00–18:00')d.time='18:00–06:00';});}
+/* Änderung 01.11. (4): Der Plan für November beginnt am Montag, 02.11. */
+function upgrade10(s){if(!s.start)s.start='2026-11-02';}
+function seed(st){
+  st.drivers.forEach(function(d){if(d.id==='d5')d.offPref=3;if(d.id==='d7')d.offPref=1;});
+  var md=st.months['2026-11']||(st.months['2026-11']={cells:{},notes:{}}),c=md.cells;
+  [1,15,22,29].forEach(function(d){if(!c['d7|'+d])c['d7|'+d]={k:'off'};});
+  if(!c['d7|8'])c['d7|8']={k:'w'};
+}
+function eff(dr,y,m,d){
+  var ov=mdata(y,m).cells[dr.id+'|'+d];
+  var w=dow(y,m,d);
+  if(!isActive(dr,y,m,d))return {s:'none'};
+  if(ov&&ov.k==='t')return {s:'work',t:ov.t,ov:1};
+  if(ov&&ov.k!=='w')return {s:'off',why:ov.k,ov:1};
+  var forced=!!ov;
+  if(!forced){
+    if(dr.wkOnly&&(dr.wdays||[6,0]).indexOf(w)<0)return {s:'none'};
+    var n=weekNo(y,m,d);
+    if(w===0&&!sundayWorks(dr,n))return {s:'off',why:'rot'};
+    if(w>=1&&w<=4&&offDayFor(dr,n)===w)return {s:'off',why:'auto'};
+  }
+  var t=((w===5||w===6)&&dr.wtime)?dr.wtime:dr.time;
+  return {s:'work',t:t,ov:forced?1:0};
+}
+function issuesHTML(y,m){
+  var n=dim(y,m),out=[],real=function(e){return e.s==='off'&&e.why!=='U'&&e.why!=='K';};
+  sortedDrivers().forEach(function(dr){
+    if(dr.wkOnly)return;
+    for(var d=fd(y,m);d<=n;d++){
+      var w=dow(y,m,d);
+      if((w===5||w===6)&&real(eff(dr,y,m,d)))out.push(dr.name+': '+DAY_S[w]+' '+dstr(y,m,d)+' frei (Fr/Sa ist Pflicht)');
+      if(w===1&&d+6<=n&&!(dr.lastDay&&Date.UTC(y,m,d+6)>Date.parse(dr.lastDay+'T00:00:00Z'))){
+        var c=0;for(var k=0;k<7;k++)if(real(eff(dr,y,m,d+k)))c++;
+        var wl='Woche '+pad(d)+'.–'+pad(d+6)+'.'+pad(m+1)+'.';
+        if(c===0)out.push(dr.name+': '+wl+' ohne freien Tag');
+        else if(c>1)out.push(dr.name+': '+wl+' mit '+c+' freien Tagen');
+      }
+    }
+  });
+  GROUPS.forEach(function(g){
+    var mem=state.drivers.filter(function(x){return x.group===g.k&&!x.wkOnly;});
+    if(mem.length<3)return;
+    for(var d=fd(y,m);d<=n;d++){
+      var w=dow(y,m,d);if(w===5||w===6)continue;
+      var c=0;mem.forEach(function(x){if(real(eff(x,y,m,d)))c++;});
+      if(c>CAP)out.push(g.k+': '+DAY_S[w]+' '+dstr(y,m,d)+' – '+c+' Fahrer gleichzeitig frei (höchstens '+CAP+')');
+    }
+  });
+  if(!out.length)return '<div class="note ok">Passt: Jeder Fahrer hat in jeder vollen Woche (Montag bis Sonntag) genau einen freien Tag, am Freitag und Samstag ist niemand frei, und pro Gruppe sind nie mehr als zwei Fahrer gleichzeitig frei.</div>';
+  return '<div class="note warn"><b>'+out.length+' Hinweis'+(out.length>1?'e':'')+'</b><ul>'+out.slice(0,12).map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+(out.length>12?'<li>… und '+(out.length-12)+' weitere</li>':'')+'</ul></div>';
+}
+function sortedDrivers(){
+  var out=[];GROUPS.forEach(function(g){state.drivers.forEach(function(d){if(d.group===g.k)out.push(d);});});
+  return out;
+}
+
+/* ---------- Speichern ---------- */
+function setStatus(txt,ok){var el=document.getElementById('status');el.textContent=txt;el.className='status'+(ok?' ok':'');}
+function markDirty(){
+  dirty=true;sunCache={};setStatus('speichert …');
+  clearTimeout(saveTimer);saveTimer=setTimeout(persist,500);
+}
+function persist(){
+  var json=JSON.stringify(state);
+  try{localStorage.setItem('dienstplan-v1',json);setStatus('gespeichert auf diesem Gerät',true);}
+  catch(e){setStatus('Speichern nicht möglich');}
+}
+function adopt(json){
+  try{var s=JSON.parse(json);if(s&&s.drivers&&s.months){
+    if(s.ver!==3){
+      var old=s.ver;s.ver=3;
+      s.drivers.forEach(function(d){
+        if(!old&&d.autoOff===undefined)d.autoOff=!d.wkOnly;
+        if(!old&&(!d.rot||d.rot==='none')&&ROTMAP[d.id])d.rot=ROTMAP[d.id];
+        if(d.wkOnly&&!d.wdays){d.wdays=d.id==='d16'?[4,5,6,0]:[6,0];}
+        if(d.id==='d16'){d.rot='none';}
+      });
+    }
+    s.drivers.forEach(function(d){if(d.name==='Muslim')d.name='Msalam';else if(d.name==='Ahmad Mseis')d.name='Ahmad Mosis';});
+    if(!(s.ver>=6)){var prev=s.ver;s.ver=6;s.drivers.forEach(function(d){if(d.sunOff===undefined)d.sunOff=d.wkOnly?0:2;});if(prev!==5)seed(s);}
+    if(!(s.ver>=7)){s.ver=7;upgrade7(s);}
+    if(!(s.ver>=8)){s.ver=8;upgrade8(s);}
+    if(!(s.ver>=9)){s.ver=9;upgrade9(s);}
+    if(!(s.ver>=10)){s.ver=10;upgrade10(s);}
+    state=s;return true;}}catch(e){}
+  return false;
+}
+function initStore(){
+  try{var l=localStorage.getItem('dienstplan-v1');if(l&&!dirty&&adopt(l))render();}catch(e){}
+  loaded=true;setStatus('gespeichert auf diesem Gerät',true);
+}
+
+/* ---------- Rendering ---------- */
+function render(){
+  sunCache={};
+  var main=document.getElementById('main');
+  var sc=main.querySelector('.scroll');var left=sc?sc.scrollLeft:0,top=sc?sc.scrollTop:0;
+  document.getElementById('mlabel').textContent=MONTHS[ui.m]+' '+ui.y;
+  document.getElementById('sub').textContent='Uber-Flotte · '+state.drivers.length+' Fahrer · '+MONTHS[ui.m]+' '+ui.y;
+  document.querySelectorAll('nav.tabs button').forEach(function(b){b.setAttribute('aria-selected',b.dataset.tab===ui.tab?'true':'false');});
+  document.getElementById('prev').parentNode.style.visibility=ui.tab==='fahrer'?'hidden':'visible';
+  if(ui.tab==='plan')main.innerHTML=planHTML();
+  else if(ui.tab==='tage')main.innerHTML=tageHTML();
+  else main.innerHTML=fahrerHTML();
+  var sc2=main.querySelector('.scroll');if(sc2){sc2.scrollLeft=left;sc2.scrollTop=top;}
+}
+function legendHTML(){
+  return '<div class="legend">'+GROUPS.map(function(g){return '<span class="chip '+g.c+'">'+g.k+'</span>';}).join('')+
+    '<span>Frei = schraffiert · U = Urlaub · K = Krank · <span style="color:var(--accent)">●</span> = von Hand geändert</span></div>';
+}
+function planHTML(){
+  var y=ui.y,m=ui.m,n=dim(y,m),drs=sortedDrivers();
+  var h=legendHTML()+'<div class="scroll"><table class="grid"><thead><tr><th class="name" rowspan="2">Fahrer</th>';
+  for(var d=fd(y,m);d<=n;d++){var w=dow(y,m,d);h+='<th class="'+((w===0||w===6)?'wk':'')+'">'+d+'</th>';}
+  h+='</tr><tr>';
+  for(d=fd(y,m);d<=n;d++){w=dow(y,m,d);h+='<th class="'+((w===0||w===6)?'wk':'')+'">'+DAY_S[w]+'</th>';}
+  h+='</tr></thead><tbody>';
+  var cnt=[];for(d=fd(y,m);d<=n;d++)cnt[d]=[0,0,0,0];
+  var lastG=null;
+  drs.forEach(function(dr){
+    if(dr.group!==lastG){lastG=dr.group;h+='<tr class="gl"><td colspan="'+(n-fd(y,m)+2)+'">'+esc(dr.group)+'</td></tr>';}
+    h+='<tr><td class="name '+gcls(dr.group)+'" title="'+esc(dr.name)+'">'+esc(dr.name)+'</td>';
+    for(var d2=fd(y,m);d2<=n;d2++){
+      var e=eff(dr,y,m,d2),cls='cell',label='·',w2=dow(y,m,d2);
+      if(e.s==='work'){cls+=' w-'+gcls(dr.group);label='Dienst';cnt[d2][gidx(dr.group)]++;}
+      else if(e.s==='off'){cls+=' off';label=e.why==='U'?'U':e.why==='K'?'K':'frei';}
+      else cls+=' none';
+      if(ui.sel&&ui.sel.id===dr.id&&ui.sel.d===d2)cls+=' sel';
+      h+='<td class="'+cls+'"><button data-cell="'+dr.id+'|'+d2+'" class="'+(e.ov?'ov':'')+'" aria-label="'+esc(dr.name)+' '+d2+'.">'+label+'</button></td>';
+    }
+    h+='</tr>';
+  });
+  h+='</tbody><tfoot>';
+  GROUPS.map(function(g){return 'Dienst: '+g.k;}).forEach(function(lbl,i){
+    h+='<tr><td class="name">'+lbl+'</td>';
+    for(var d3=fd(y,m);d3<=n;d3++){h+='<td class="'+((dow(y,m,d3)===0||dow(y,m,d3)===6)?'wk':'')+'">'+cnt[d3][i]+'</td>';}
+    h+='</tr>';
+  });
+  h+='</tfoot></table></div>'+issuesHTML(y,m);
+  if(ui.sel)h+=editorHTML();
+  else h+='<p class="hint">Tippe auf ein Feld, um die Schicht für diesen Tag zu ändern. Änderungen werden automatisch gespeichert.</p>';
+  return h;
+}
+function editorHTML(){
+  var y=ui.y,m=ui.m,s=ui.sel;
+  var dr=state.drivers.filter(function(x){return x.id===s.id;})[0];
+  if(!dr){ui.sel=null;return '';}
+  var e=eff(dr,y,m,s.d),w=dow(y,m,s.d);
+  var cur=e.s==='work'?'Dienst':e.s==='off'?OFFLBL[e.why]:'kein Dienst vorgesehen';
+  return '<div class="editor" role="group" aria-label="Schicht bearbeiten"><h3><b>'+esc(dr.name)+' · '+DAY_S[w]+' '+dstr(y,m,s.d)+'</b><span>Aktuell: '+esc(cur)+'</span></h3>'+
+  '<div class="erow">'+
+   '<button class="btn sm" data-act="std">Standard</button>'+
+   '<button class="btn sm" data-act="w">Dienst</button>'+
+   '<button class="btn sm" data-act="off">Frei</button>'+
+   '<button class="btn sm" data-act="U">Urlaub</button>'+
+   '<button class="btn sm" data-act="K">Krank</button>'+
+   '<span class="sep"></span>'+
+   '<label><input type="checkbox" id="ed-all"> gilt für alle '+DAY_L[w]+'e im Monat</label>'+
+   '<button class="btn sm" data-act="close" style="margin-left:auto">Schließen</button>'+
+  '</div></div>';
+}
+function groupedLines(y,m,d){
+  var drs=sortedDrivers(),map={},order=[],off=[];
+  drs.forEach(function(dr){
+    var e=eff(dr,y,m,d);
+    if(e.s==='work'){var k=dr.group;if(!map[k]){map[k]={g:dr.group,n:[]};order.push(k);}map[k].n.push(dr.name);}
+    else if(e.s==='off')off.push(dr.name+' ('+OFFLBL[e.why]+')');
+  });
+  return {work:order.map(function(k){return map[k];}),off:off};
+}
+function tageHTML(){
+  var y=ui.y,m=ui.m,n=dim(y,m),h='<div class="days">';
+  for(var d=fd(y,m);d<=n;d++){
+    var w=dow(y,m,d),g=groupedLines(y,m,d),note=mdata(y,m).notes[d]||'';
+    h+='<section class="day'+((w===0||w===6)?' wkd':'')+'"><h3><span>'+DAY_L[w]+'<small>'+dstr(y,m,d)+'</small></span><button class="btn sm" data-copy="'+d+'">Kopieren</button></h3>';
+    g.work.forEach(function(l){h+='<div class="line"><span><span class="chip '+gcls(l.g)+'">'+esc(l.g)+'</span></span><span></span><span>'+l.n.map(esc).join(', ')+'</span></div>';});
+    if(g.off.length)h+='<div class="line offl"><span>Frei</span><span></span><span>'+g.off.map(esc).join(', ')+'</span></div>';
+    h+='<textarea data-note="'+d+'" placeholder="Notiz zum Tag (z. B. Feiertag, Ersatzfahrer)" aria-label="Notiz '+dstr(y,m,d)+'">'+esc(note)+'</textarea></section>';
+  }
+  return h+'</div>';
+}
+function fahrerHTML(){
+  var h='<div class="tw"><table class="dr"><thead><tr><th>Name</th><th>Gruppe</th><th>Feste Arbeitstage</th><th>Wochenfrei Mo–Do automatisch</th><th>Freier Tag</th><th>Freie Sonntage pro Monat</th><th>Letzter Arbeitstag</th><th></th></tr></thead><tbody>';
+  state.drivers.forEach(function(d){
+    h+='<tr data-id="'+d.id+'"><td><input type="text" data-f="name" value="'+esc(d.name)+'" aria-label="Name"></td>'+
+    '<td><select data-f="group">'+GROUPS.map(function(g){return '<option'+(g.k===d.group?' selected':'')+'>'+g.k+'</option>';}).join('')+'</select></td>'+
+    '<td><input type="text" data-f="wdays" value="'+esc((d.wdays||[]).slice().sort(function(a,b){return ((a+6)%7)-((b+6)%7);}).map(function(k){return DAY_S[k];}).join(', '))+'" placeholder="alle Tage" aria-label="Feste Arbeitstage" style="min-width:120px"></td>'+
+    '<td class="c"><input type="checkbox" data-f="autoOff"'+(d.autoOff!==false?' checked':'')+' aria-label="Wochenfrei automatisch"></td>'+
+    '<td><select data-f="offPref" aria-label="Fester freier Tag">'+[['0','Automatisch'],['1','Montag'],['2','Dienstag'],['3','Mittwoch'],['4','Donnerstag']].map(function(o){return '<option value="'+o[0]+'"'+((d.offPref||0)===+o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select></td>'+
+    '<td><input type="number" min="0" max="5" data-f="sunOff" value="'+(d.sunOff===undefined?2:d.sunOff)+'" style="width:64px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:5px 8px;min-height:32px" aria-label="Freie Sonntage pro Monat"></td>'+
+    '<td><input type="date" data-f="lastDay" value="'+esc(d.lastDay||'')+'" style="background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:5px 8px;min-height:32px" aria-label="Letzter Arbeitstag"></td>'+
+    '<td><button class="btn sm danger" data-del="'+d.id+'">Löschen</button></td></tr>';
+  });
+  h+='</tbody></table></div><div class="row-actions"><button class="btn primary" id="add">Fahrer hinzufügen</button><button class="btn danger" id="reset">Alles auf den Entwurf aus der Excel-Datei zurücksetzen</button></div>'+
+  '<p class="hint">Plan beginnt am <input type="date" id="start-date" value="'+esc(state.start||'')+'" style="background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:4px 8px;min-height:30px" aria-label="Plan beginnt am"> (frühere Tage dieses Monats werden ausgeblendet)</p>'+
+  '<p class="hint">Einzelne Tage änderst du im Plan. Freie Sonntage: Pro Gruppe sind sonntags höchstens zwei Fahrer frei. Die Sonntage werden fair verteilt (Wunsch: so viele pro Monat, wie in der Spalte steht, Standard 2) und möglichst nicht hintereinander. Mit „Letzter Arbeitstag“ endet der Plan eines Fahrers. Wer Sonntag frei hat, hat damit seinen freien Tag dieser Woche. Wer Sonntag arbeitet, bekommt automatisch einen freien Tag zwischen Montag und Donnerstag, verteilt auf die Fahrer der Gruppe. Die Wochen laufen von Montag bis Sonntag, über Monatsgrenzen hinweg. Mit „Freier Tag“ legst du für einen Fahrer einen festen Wochentag fest (z. B. Imad immer Mittwoch). Im Plan kannst du jeden Tag von Hand ändern.</p>';
+  return h;
+}
+
+/* ---------- Aktionen ---------- */
+function toast(t){var el=document.getElementById('toast');el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(function(){el.hidden=true;},2200);}
+function setOverride(id,d,val){
+  var md=mdata(ui.y,ui.m,true),k=id+'|'+d;
+  if(val)md.cells[k]=val;else delete md.cells[k];
+}
+function applyEdit(val){
+  var s=ui.sel;if(!s)return;
+  var all=document.getElementById('ed-all').checked,w=dow(ui.y,ui.m,s.d);
+  if(all){for(var d=1;d<=dim(ui.y,ui.m);d++){if(dow(ui.y,ui.m,d)===w)setOverride(s.id,d,val);}}
+  else setOverride(s.id,s.d,val);
+  markDirty();render();
+}
+function dayText(d){
+  var y=ui.y,m=ui.m,w=dow(y,m,d),g=groupedLines(y,m,d);
+  var t=DAY_L[w]+' '+dstr(y,m,d)+'\n';
+  g.work.forEach(function(l){t+=l.g+': '+l.n.join(', ')+'\n';});
+  if(g.off.length)t+='Frei: '+g.off.join(', ')+'\n';
+  var note=mdata(y,m).notes[d];if(note)t+='Notiz: '+note+'\n';
+  return t.trim();
+}
+function copyText(t){
+  var done=function(){toast('Kopiert');};
+  var fb=function(){var ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');done();}catch(e){toast('Kopieren nicht möglich');}ta.remove();};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(done,fb);else fb();
+}
+
+async function exportXlsx(){
+  try{await loadExcel();}catch(e){toast('Excel-Bibliothek konnte nicht geladen werden (einmalig Internet nötig)');return;}
+  var dl={save:function(o){return saveFile(o.filename,o.data);}};
+  var y=ui.y,m=ui.m,n=dim(y,m),drs=sortedDrivers();
+  var wb=new ExcelJS.Workbook();wb.creator='Dienstplan Paderborn';
+  var FN='Calibri';
+  var COL={fr:{bg:'FFFDF0C9',fg:'FF6B4A00',bar:'FFE8C45A'},na:{bg:'FFDFE3FB',fg:'FF26308A',bar:'FF9AA6EE'},fl:{bg:'FFD3F0EA',fg:'FF0B5A4E',bar:'FF7CCFBD'},pt:{bg:'FFF8DDE6',fg:'FF8A1F48',bar:'FFE59AB5'}};
+  var INK='FF1B2230',INK2='FF3A4256',WK='FFF6F1E4',GREY='FFEDEEE9';
+  var thin={style:'thin',color:{argb:'FFC9CDC4'}},box={top:thin,left:thin,bottom:thin,right:thin};
+  function fill(c,a){c.fill={type:'pattern',pattern:'solid',fgColor:{argb:a}};}
+  function style(c,o){o=o||{};c.font={name:FN,size:o.size||10,bold:!!o.bold,italic:!!o.italic,color:{argb:o.color||INK}};c.alignment={horizontal:o.h||'center',vertical:o.v||'middle',wrapText:!!o.wrap};c.border=box;if(o.bg)fill(c,o.bg);}
+  var monthName=MONTHS[m]+' '+y;
+
+  /* ---- Blatt 1: Dienstplan ---- */
+  var ws=wb.addWorksheet('Dienstplan',{views:[{state:'frozen',xSplit:2,ySplit:4,showGridLines:false}],
+    pageSetup:{orientation:'landscape',paperSize:8,fitToPage:true,fitToWidth:1,fitToHeight:0,margins:{left:.3,right:.3,top:.5,bottom:.5,header:.2,footer:.2},printTitlesRow:'3:4',printTitlesColumn:'A:B'}});
+  var f0=fd(y,m),last=n-f0+3;
+  ws.getColumn(1).width=19;ws.getColumn(2).width=13;
+  for(var c=3;c<=last;c++)ws.getColumn(c).width=7.6;
+  ws.mergeCells(1,1,1,last);
+  var t=ws.getCell(1,1);t.value='Dienstplan Paderborn · '+monthName;t.font={name:FN,size:18,bold:true,color:{argb:INK}};t.alignment={horizontal:'left',vertical:'middle'};ws.getRow(1).height=30;
+  ws.mergeCells(2,1,2,last);
+  var lg=ws.getCell(2,1);lg.value='Dienst = im Dienst   ·   frei = freier Tag   ·   U = Urlaub   ·   K = krank   ·   Fr/Sa hat niemand frei';
+  lg.font={name:FN,size:10,italic:true,color:{argb:'FF667085'}};lg.alignment={horizontal:'left',vertical:'middle'};ws.getRow(2).height=20;
+  var r3=ws.getRow(3),r4=ws.getRow(4);r3.height=22;r4.height=18;
+  [['Fahrer','Gruppe']].forEach(function(){
+    ws.mergeCells(3,1,4,1);ws.mergeCells(3,2,4,2);
+    var a=ws.getCell(3,1),b=ws.getCell(3,2);a.value='Fahrer';b.value='Gruppe';
+    [a,b].forEach(function(x){style(x,{bold:true,color:'FFFFFFFF',bg:INK,h:'left',size:11});x.alignment={horizontal:'left',vertical:'middle',indent:1};});
+    ws.getCell(4,1).border=box;ws.getCell(4,2).border=box;
+  });
+  for(var d=f0;d<=n;d++){
+    var w=dow(y,m,d),wk=(w===0||w===6),bg=wk?INK2:INK;
+    var h1=ws.getCell(3,d-f0+3),h2=ws.getCell(4,d-f0+3);
+    h1.value=d;h2.value=DAY_S[w];
+    style(h1,{bold:true,color:'FFFFFFFF',bg:bg,size:11});style(h2,{color:'FFFFFFFF',bg:bg,size:9});
+  }
+  var row=5,firstDataRow=5,lastG=null,cnt=[];for(d=f0;d<=n;d++)cnt[d]=[0,0,0,0];
+  drs.forEach(function(dr){
+    var cl=COL[gcls(dr.group)];
+    if(dr.group!==lastG){
+      lastG=dr.group;ws.mergeCells(row,1,row,last);
+      var g=ws.getCell(row,1);g.value=dr.group.toUpperCase();style(g,{bold:true,color:cl.fg,bg:cl.bar,h:'left',size:10});g.alignment={horizontal:'left',vertical:'middle',indent:1};ws.getRow(row).height=19;row++;
+    }
+    var rr=ws.getRow(row);rr.height=22;
+    var nm=ws.getCell(row,1),gp=ws.getCell(row,2);nm.value=dr.name;gp.value=dr.group;
+    style(nm,{bold:true,h:'left',size:11,bg:'FFFFFFFF'});nm.alignment={horizontal:'left',vertical:'middle',indent:1};
+    style(gp,{h:'left',size:9,color:cl.fg,bg:cl.bg});gp.alignment={horizontal:'left',vertical:'middle',indent:1};
+    for(var d2=f0;d2<=n;d2++){
+      var e=eff(dr,y,m,d2),c2=ws.getCell(row,d2-f0+3),w2=dow(y,m,d2),wk2=(w2===0||w2===6);
+      if(e.s==='work'){c2.value='Dienst';style(c2,{bold:true,color:cl.fg,bg:cl.bg,size:9});cnt[d2][gidx(dr.group)]++;}
+      else if(e.s==='off'){
+        if(e.why==='U'){c2.value='U';style(c2,{bold:true,color:'FF8A4B00',bg:'FFFFE8CC'});}
+        else if(e.why==='K'){c2.value='K';style(c2,{bold:true,color:'FF8A1F1F',bg:'FFFADBD8'});}
+        else{c2.value='frei';style(c2,{italic:true,color:'FF8A93A3',bg:'FFE4E6E0',size:9});}
+      }
+      else{c2.value='';style(c2,{bg:wk2?WK:'FFFFFFFF'});}
+    }
+    row++;
+  });
+  GROUPS.map(function(g){return 'Im Dienst: '+g.k;}).forEach(function(lbl,i){
+    ws.mergeCells(row,1,row,2);var a=ws.getCell(row,1);a.value=lbl;style(a,{bold:true,h:'left',bg:GREY,size:9});a.alignment={horizontal:'left',vertical:'middle',indent:1};ws.getCell(row,2).border=box;
+    for(var d3=f0;d3<=n;d3++){var cc=ws.getCell(row,d3-f0+3);cc.value=cnt[d3][i];style(cc,{bg:GREY,size:10,bold:true});}
+    ws.getRow(row).height=18;row++;
+  });
+
+  /* ---- Blatt: Liste zum Filtern (eine Zeile pro Fahrer und Tag) ---- */
+  var wl=wb.addWorksheet('Liste (Filter)',{views:[{state:'frozen',ySplit:3,showGridLines:false}],
+    pageSetup:{orientation:'portrait',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0,printTitlesRow:'3:3'}});
+  [13,14,20,14,17].forEach(function(x,i){wl.getColumn(i+1).width=x;});
+  wl.mergeCells(1,1,1,5);var tl=wl.getCell(1,1);tl.value='Liste zum Filtern · '+monthName;tl.font={name:FN,size:18,bold:true,color:{argb:INK}};tl.alignment={horizontal:'left',vertical:'middle'};wl.getRow(1).height=30;
+  wl.mergeCells(2,1,2,5);var tp=wl.getCell(2,1);
+  tp.value='So filterst du: Pfeil in der Kopfzeile anklicken. Fahrer = ein Name zeigt den ganzen Monat dieses Fahrers. Datum = ein Tag zeigt alle Fahrer an diesem Tag. Status = Frei zeigt, wer frei hat; Status = Dienst zeigt, wer arbeitet.';
+  tp.font={name:FN,size:10,italic:true,color:{argb:'FF667085'}};tp.alignment={horizontal:'left',vertical:'middle',wrapText:true};wl.getRow(2).height=34;
+  ['Datum','Wochentag','Fahrer','Gruppe','Status'].forEach(function(hd,i){var ch=wl.getCell(3,i+1);ch.value=hd;style(ch,{bold:true,color:'FFFFFFFF',bg:INK,size:11,h:'left'});ch.alignment={horizontal:'left',vertical:'middle',indent:1};});
+  wl.getRow(3).height=24;
+  var lr=4;
+  for(var dl2=f0;dl2<=n;dl2++){
+    var wl2=dow(y,m,dl2),wkl=(wl2===0||wl2===6);
+    drs.forEach(function(dr){
+      var el=eff(dr,y,m,dl2),cl=COL[gcls(dr.group)],stat;
+      if(el.s==='work'){stat='Dienst';}
+      else if(el.s==='off'){stat=el.why==='U'?'Urlaub':el.why==='K'?'Krank':'Frei';}
+      else stat='Nicht eingeplant';
+      var base=wkl?WK:'FFFFFFFF';
+      var vals2=[new Date(Date.UTC(y,m,dl2)),DAY_L[wl2],dr.name,dr.group,stat];
+      vals2.forEach(function(v,i){
+        var cx=wl.getCell(lr,i+1);cx.value=v;
+        style(cx,{bg:base,h:'left',size:10,bold:i===2});
+        cx.alignment={horizontal:'left',vertical:'middle',indent:1};
+        if(i===0)cx.numFmt='dd.mm.yyyy';
+        if(i===3){fill(cx,cl.bg);cx.font={name:FN,size:10,color:{argb:cl.fg}};}
+        if(i===4){
+          if(stat==='Dienst'){fill(cx,cl.bg);cx.font={name:FN,size:10,bold:true,color:{argb:cl.fg}};}
+          else if(stat==='Frei'){fill(cx,'FFE4E6E0');cx.font={name:FN,size:10,italic:true,color:{argb:'FF667085'}};}
+          else if(stat==='Urlaub'){fill(cx,'FFFFE8CC');cx.font={name:FN,size:10,bold:true,color:{argb:'FF8A4B00'}};}
+          else if(stat==='Krank'){fill(cx,'FFFADBD8');cx.font={name:FN,size:10,bold:true,color:{argb:'FF8A1F1F'}};}
+          else{cx.font={name:FN,size:10,color:{argb:'FFA0A6B2'}};}
+        }
+      });
+      wl.getRow(lr).height=18;lr++;
+    });
+  }
+  wl.autoFilter='A3:E'+(lr-1);
+
+  /* ---- Blatt 2: Tagesplan ---- */
+  var wt=wb.addWorksheet('Tagesplan',{views:[{state:'frozen',ySplit:3,showGridLines:false}],
+    pageSetup:{orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0,printTitlesRow:'3:3'}});
+  var W=[12,13,40,46,40,22,34,30];W.forEach(function(x,i){wt.getColumn(i+1).width=x;});
+  wt.mergeCells(1,1,1,8);var t2=wt.getCell(1,1);t2.value='Tagesplan · '+monthName;t2.font={name:FN,size:18,bold:true,color:{argb:INK}};t2.alignment={horizontal:'left',vertical:'middle'};wt.getRow(1).height=30;
+  wt.getRow(2).height=6;
+  ['Datum','Tag','Frühschicht','Nachtschicht','Flexibel','Part-time','Frei / Abwesend','Notiz'].forEach(function(h,i){var c3=wt.getCell(3,i+1);c3.value=h;style(c3,{bold:true,color:'FFFFFFFF',bg:INK,size:11,h:i<2?'center':'left'});if(i>=2)c3.alignment={horizontal:'left',vertical:'middle',indent:1};});
+  wt.getRow(3).height=24;
+  function lines(txt,wid){return txt.split('\n').reduce(function(s,l){return s+Math.max(1,Math.ceil(l.length/(wid*1.0)));},0);}
+  for(var d4=f0;d4<=n;d4++){
+    var w4=dow(y,m,d4),wk4=(w4===0||w4===6),g4=groupedLines(y,m,d4),by={'Frühschicht':[],'Nachtschicht':[],'Flexibel':[],'Part-time':[]};
+    g4.work.forEach(function(l){by[l.g].push(l.n.join(', '));});
+    var vals=[dstr(y,m,d4).slice(0,6),DAY_L[w4],by['Frühschicht'].join('\n'),by['Nachtschicht'].join('\n'),by['Flexibel'].join('\n'),by['Part-time'].join('\n'),g4.off.join('\n'),mdata(y,m).notes[d4]||''];
+    var rw=3+d4-f0+1,mx=1;
+    vals.forEach(function(v,i){
+      var c4=wt.getCell(rw,i+1);c4.value=v;
+      style(c4,{bg:wk4?WK:'FFFFFFFF',h:i<2?'center':'left',v:'top',wrap:true,bold:i===1&&wk4,size:10,color:i===6?'FF667085':INK});
+      if(i>=2)c4.alignment={horizontal:'left',vertical:'top',wrapText:true,indent:1};
+      if(i<2)c4.alignment={horizontal:'center',vertical:'top'};
+      mx=Math.max(mx,lines(v,W[i]-2));
+    });
+    wt.getRow(rw).height=Math.max(22,mx*14+8);
+  }
+
+  wt.autoFilter='A3:H'+(3+n-f0+1);
+
+  /* ---- Blatt 3: Übersicht ---- */
+  var wu=wb.addWorksheet('Übersicht',{views:[{showGridLines:false}],pageSetup:{orientation:'portrait',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0}});
+  [20,14,13,12,16,14].forEach(function(x,i){wu.getColumn(i+1).width=x;});
+  wu.mergeCells(1,1,1,6);var t3=wu.getCell(1,1);t3.value='Übersicht pro Fahrer · '+monthName;t3.font={name:FN,size:18,bold:true,color:{argb:INK}};t3.alignment={horizontal:'left',vertical:'middle'};wu.getRow(1).height=30;
+  wu.getRow(2).height=6;
+  ['Fahrer','Gruppe','Diensttage','Freie Tage','Freie Sonntage','Urlaub/Krank'].forEach(function(h,i){var c5=wu.getCell(3,i+1);c5.value=h;style(c5,{bold:true,color:'FFFFFFFF',bg:INK,size:11,h:i<2?'left':'center'});});
+  wu.getRow(3).height=24;
+  drs.forEach(function(dr,i){
+    var work=0,free=0,sun=0,uk=0;
+    for(var d5=f0;d5<=n;d5++){var e5=eff(dr,y,m,d5);if(e5.s==='work')work++;else if(e5.s==='off'){if(e5.why==='U'||e5.why==='K')uk++;else{free++;if(dow(y,m,d5)===0)sun++;}}}
+    var cl=COL[gcls(dr.group)],rw2=4+i;
+    [dr.name,dr.group,work,free,sun,uk].forEach(function(v,j){
+      var c6=wu.getCell(rw2,j+1);c6.value=v;style(c6,{h:j<2?'left':'center',bold:j===0,bg:j===1?cl.bg:'FFFFFFFF',color:j===1?cl.fg:INK,size:10});
+      if(j<2)c6.alignment={horizontal:'left',vertical:'middle',indent:1};
+    });
+    wu.getRow(rw2).height=20;
+  });
+
+  wu.autoFilter='A3:F'+(3+drs.length);
+
+  var buf=await wb.xlsx.writeBuffer();
+  try{await dl.save({filename:'Dienstplan_Paderborn_'+MONTHS[m]+'_'+y+'.xlsx',data:buf});toast('Datei gespeichert');}
+  catch(e){if(!e||e.code!=='declined')toast('Export nicht möglich');}
+}
+
+
+/* ---------- Dateien ---------- */
+function saveFile(name,data){
+  var mime=/\.xlsx$/.test(name)?'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet':'application/json';
+  var b=data instanceof Blob?data:new Blob([data],{type:mime});
+  var u=URL.createObjectURL(b),a=document.createElement('a');
+  a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(function(){URL.revokeObjectURL(u);},5000);
+  return Promise.resolve();
+}
+function loadScript(src){return new Promise(function(ok,fail){var s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=function(){s.remove();fail(new Error('load'));};document.head.appendChild(s);});}
+function loadExcel(){
+  if(window.ExcelJS)return Promise.resolve();
+  return loadScript('./exceljs.min.js').catch(function(){return loadScript('https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js');});
+}
+function exportBackup(){
+  var d=new Date(),ds=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  saveFile('Dienstplan_Sicherung_'+ds+'.json',JSON.stringify({app:'dienstplan-paderborn',exported:d.toISOString(),state:state},null,1));
+  toast('Sicherung gespeichert');
+}
+function importBackup(file){
+  var r=new FileReader();
+  r.onload=function(){
+    try{
+      var o=JSON.parse(r.result),st=o&&o.state?o.state:o;
+      if(adopt(JSON.stringify(st))){ui.sel=null;markDirty();render();toast('Sicherung geladen');}
+      else toast('Datei passt nicht zum Dienstplan');
+    }catch(e){toast('Datei konnte nicht gelesen werden');}
+  };
+  r.readAsText(file);
+}
+
+/* ---------- Events ---------- */
+var resetArm=false,delArm=null;
+document.addEventListener('click',function(ev){
+  var t=ev.target;
+  var tab=t.closest('[data-tab]');if(tab){ui.tab=tab.dataset.tab;render();return;}
+  if(t.closest('#prev')){ui.m--;if(ui.m<0){ui.m=11;ui.y--;}ui.sel=null;render();return;}
+  if(t.closest('#next')){ui.m++;if(ui.m>11){ui.m=0;ui.y++;}ui.sel=null;render();return;}
+  if(t.closest('#export')){exportXlsx();return;}
+  if(t.closest('#bk-save')){exportBackup();return;}
+  if(t.closest('#bk-load')){document.getElementById('bk-file').click();return;}
+  var c=t.closest('[data-cell]');
+  if(c){var p=c.dataset.cell.split('|');var same=ui.sel&&ui.sel.id===p[0]&&ui.sel.d===+p[1];ui.sel=same?null:{id:p[0],d:+p[1]};render();return;}
+  var a=t.closest('[data-act]');
+  if(a){var act=a.dataset.act;
+    if(act==='close'){ui.sel=null;render();}
+    else if(act==='std')applyEdit(null);
+    else if(act==='w'||act==='off'||act==='U'||act==='K')applyEdit({k:act});
+    else if(act==='time'){
+      var f=document.getElementById('ed-from').value,to=document.getElementById('ed-to').value;
+      if(!f||!to){toast('Bitte Start- und Endzeit eintragen');return;}
+      applyEdit({k:'t',t:f+'–'+to});
+    }
+    return;}
+  var cp=t.closest('[data-copy]');if(cp){copyText(dayText(+cp.dataset.copy));return;}
+  if(t.closest('#add')){
+    var id='d'+Date.now().toString(36);
+    state.drivers.push(D(id,'Neuer Fahrer','Frühschicht','06:00–18:00'));markDirty();render();return;}
+  var del=t.closest('[data-del]');
+  if(del){var id2=del.dataset.del;
+    if(delArm===id2){state.drivers=state.drivers.filter(function(x){return x.id!==id2;});delArm=null;markDirty();render();}
+    else{delArm=id2;del.textContent='Wirklich löschen?';}
+    return;}
+  if(t.closest('#reset')){
+    if(resetArm){state=defaults();resetArm=false;ui.sel=null;markDirty();render();toast('Zurückgesetzt');}
+    else{resetArm=true;t.closest('#reset').textContent='Nochmal tippen: alle Änderungen gehen verloren';}
+    return;}
+});
+document.addEventListener('change',function(ev){
+  var t=ev.target;
+  if(t.id==='bk-file'){if(t.files&&t.files[0])importBackup(t.files[0]);t.value='';return;}
+  if(t.id==='start-date'){state.start=t.value||'';ui.sel=null;markDirty();render();return;}
+  if(t.dataset&&t.dataset.note){var md=mdata(ui.y,ui.m,true);if(t.value.trim())md.notes[t.dataset.note]=t.value;else delete md.notes[t.dataset.note];markDirty();return;}
+  var f=t.dataset&&t.dataset.f;if(!f)return;
+  var tr=t.closest('tr');var dr=state.drivers.filter(function(x){return x.id===tr.dataset.id;})[0];if(!dr)return;
+  if(f==='wdays'){
+    var map={so:0,mo:1,di:2,mi:3,do:4,fr:5,sa:6},arr=[];
+    t.value.toLowerCase().split(/[\s,;]+/).forEach(function(x){var k=map[x.slice(0,2)];if(k!==undefined&&arr.indexOf(k)<0)arr.push(k);});
+    dr.wdays=arr;dr.wkOnly=arr.length>0;
+  }
+  else if(f==='autoOff')dr.autoOff=t.checked;
+  else if(f==='offPref')dr.offPref=parseInt(t.value,10)||0;
+  else if(f==='lastDay')dr.lastDay=t.value||'';
+  else if(f==='sunOff')dr.sunOff=Math.max(0,Math.min(5,parseInt(t.value,10)||0));
+  else if(f==='time'||f==='wtime'){
+    var v=t.value.trim();
+    if(f==='wtime'&&v===''){dr.wtime='';}
+    else if(validTime(v)){dr[f]=normTime(v);}
+    else{toast('Zeitformat: 06:00–18:00');}
+  }
+  else if(f==='name'){dr.name=t.value.trim()||dr.name;}
+  else dr[f]=t.value;
+  markDirty();render();
+});
+render();initStore();
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./sw.js').catch(function(){});});}
+})();
+</script>
+</body>
+</html>
