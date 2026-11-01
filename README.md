@@ -1,1 +1,1 @@
-# VP-Bussnise-Partner-Dienstplan-
+# VP-Business-Partner-Dienstplan-
