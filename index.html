@@ -130,7 +130,8 @@ table.dr{border-collapse:collapse;width:100%;min-width:860px}
 .dr input[type=checkbox]{width:18px;height:18px}
 .row-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:max(20px,env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:8px 14px;border-radius:6px;font-size:13px;z-index:20;max-width:90vw}
-</style>
+
+.sbox{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:60;padding:16px}.sbox>div{background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:18px;max-width:420px;width:100%}.sbox h3{margin:0 0 6px}.sbox p{margin:0 0 6px;color:var(--muted);font-size:13px}.sbox input{border:1px solid var(--line);border-radius:6px;padding:8px;background:var(--bg);color:var(--fg)}</style>
 </head>
 <body>
 
@@ -150,6 +151,7 @@ table.dr{border-collapse:collapse;width:100%;min-width:860px}
       <button class="btn primary" id="export">Excel exportieren</button>
       <button class="btn" id="bk-save">Sicherung speichern</button>
       <button class="btn" id="bk-load">Sicherung laden</button>
+      <button class="btn" id="sync-btn">Sync</button>
       <input type="file" id="bk-file" accept=".json,application/json" hidden>
       <span class="status" id="status">lädt …</span>
     </div>
@@ -382,8 +384,9 @@ function markDirty(){
 }
 function persist(){
   var json=JSON.stringify(state);
-  try{localStorage.setItem('dienstplan-v1',json);setStatus('gespeichert auf diesem Gerät',true);}
+  try{localStorage.setItem('dienstplan-v1',json);setRev(Date.now());setStatus('gespeichert auf diesem Gerät',true);}
   catch(e){setStatus('Speichern nicht möglich');}
+  if(syncOn()){sync.pend=true;setStatus('speichert …');schedulePush(1200);}
 }
 function adopt(json){
   try{var s=JSON.parse(json);if(s&&s.drivers&&s.months){
@@ -458,7 +461,7 @@ function planHTML(){
   });
   h+='</tfoot></table></div>'+issuesHTML(y,m);
   if(ui.sel)h+=editorHTML();
-  else h+='<p class="hint">Tippe auf ein Feld, um die Schicht für diesen Tag zu ändern. Änderungen werden automatisch gespeichert. · Version 9</p>';
+  else h+='<p class="hint">Tippe auf ein Feld, um die Schicht für diesen Tag zu ändern. Änderungen werden automatisch gespeichert. · Version 10</p>';
   return h;
 }
 function editorHTML(){
@@ -713,6 +716,104 @@ async function exportXlsx(){
   catch(e){if(!e||e.code!=='declined')toast('Export nicht möglich');}
 }
 
+/* ---------- Sync über ein geheimes GitHub-Gist ---------- */
+var SYNC_DESC='dienstplan-paderborn-sync',SYNC_FILE='dienstplan.json';
+var sync={tok:'',gid:'',base:0,timer:null,busy:false,pend:false,err:false};
+try{var sj=JSON.parse(localStorage.getItem('dienstplan-sync')||'{}');sync.tok=sj.tok||'';sync.gid=sj.gid||'';sync.base=sj.base||0;}catch(e){}
+function syncOn(){return !!(sync.tok&&sync.gid);}
+function syncSave(){try{localStorage.setItem('dienstplan-sync',JSON.stringify({tok:sync.tok,gid:sync.gid,base:sync.base}));}catch(e){}}
+function getRev(){try{return +localStorage.getItem('dienstplan-rev')||0;}catch(e){return 0;}}
+function setRev(r){try{localStorage.setItem('dienstplan-rev',String(r));}catch(e){}}
+function gh(path,opt){
+  opt=opt||{};opt.headers={'Accept':'application/vnd.github+json','Authorization':'Bearer '+sync.tok,'Content-Type':'application/json'};opt.cache='no-store';
+  return fetch('https://api.github.com'+path,opt).then(function(r){
+    if(r.status===401||r.status===403)throw new Error('auth');
+    if(!r.ok)throw new Error('http'+r.status);
+    return r.json();
+  });
+}
+function errText(e){return e&&e.message==='auth'?'Sync: Token ungültig':'Sync: offline, bleibt auf diesem Gerät';}
+function readRemote(){
+  return gh('/gists/'+sync.gid+'?t='+Date.now()).then(function(g){
+    var f=g.files&&g.files[SYNC_FILE];if(!f||!f.content)throw new Error('nofile');
+    return JSON.parse(f.content);
+  });
+}
+function applyRemote(rm){
+  if(!rm||!rm.state||!adopt(JSON.stringify(rm.state)))return false;
+  ui.sel=null;sunCache={};setRev(rm.rev||0);sync.base=rm.rev||0;syncSave();
+  try{localStorage.setItem('dienstplan-v1',JSON.stringify(state));}catch(e){}
+  render();return true;
+}
+function schedulePush(ms){clearTimeout(sync.timer);sync.timer=setTimeout(syncPush,ms||1200);}
+async function syncPush(){
+  if(!syncOn())return;
+  if(sync.busy){schedulePush(1500);return;}
+  sync.busy=true;
+  try{
+    var rm=await readRemote();
+    if((rm.rev||0)>sync.base){
+      applyRemote(rm);sync.pend=false;sync.err=false;
+      setStatus('synchronisiert ✓',true);toast('Neuere Daten vom anderen Gerät geladen. Bitte deine letzte Änderung noch einmal machen.');
+      return;
+    }
+    var rev=getRev()||Date.now(),body={files:{}};
+    body.files[SYNC_FILE]={content:JSON.stringify({rev:rev,state:state})};
+    await gh('/gists/'+sync.gid,{method:'PATCH',body:JSON.stringify(body)});
+    sync.base=rev;syncSave();sync.err=false;
+    if(getRev()>rev){schedulePush(800);}else{sync.pend=false;setStatus('synchronisiert ✓',true);}
+  }catch(e){sync.err=true;setStatus(errText(e));}
+  finally{sync.busy=false;}
+}
+async function syncPull(){
+  if(!syncOn()||sync.busy||sync.pend)return;
+  sync.busy=true;var again=false;
+  try{
+    var rm=await readRemote(),lr=getRev();
+    if((rm.rev||0)>lr){if(applyRemote(rm)){toast('Neue Daten vom anderen Gerät geladen');}}
+    else if(lr>(rm.rev||0)){again=true;}
+    sync.err=false;setStatus('synchronisiert ✓',true);
+  }catch(e){sync.err=true;setStatus(errText(e));}
+  finally{sync.busy=false;}
+  if(again){sync.pend=true;syncPush();}
+}
+async function syncConnect(tok){
+  sync.tok=(tok||'').trim();sync.gid='';
+  if(!sync.tok){toast('Bitte Token einfügen');return false;}
+  setStatus('verbinde …');
+  try{
+    var list=await gh('/gists?per_page=100');
+    var g=list.filter(function(x){return x.description===SYNC_DESC;})[0];
+    if(g){
+      sync.gid=g.id;var rm=await readRemote();
+      if(!confirm('In der Cloud gibt es schon einen Dienstplan. Die Daten auf diesem Gerät damit ersetzen?')){sync.tok='';sync.gid='';syncSave();setStatus('Sync nicht verbunden');return false;}
+      applyRemote(rm);
+    }else{
+      var rev=Date.now(),files={};files[SYNC_FILE]={content:JSON.stringify({rev:rev,state:state})};
+      var c=await gh('/gists',{method:'POST',body:JSON.stringify({description:SYNC_DESC,public:false,files:files})});
+      sync.gid=c.id;sync.base=rev;setRev(rev);
+    }
+    syncSave();sync.pend=false;setStatus('synchronisiert ✓',true);toast('Sync verbunden');return true;
+  }catch(e){sync.tok='';sync.gid='';syncSave();setStatus(errText(e));toast(e&&e.message==='auth'?'Token ungültig oder ohne Gist-Recht':'Keine Verbindung');return false;}
+}
+function syncOff(){sync.tok='';sync.gid='';sync.base=0;sync.pend=false;clearTimeout(sync.timer);syncSave();setStatus('gespeichert auf diesem Gerät',true);}
+function syncBox(){
+  var old=document.getElementById('syncbox');if(old)old.remove();
+  var d=document.createElement('div');d.id='syncbox';d.className='sbox';
+  var inner=syncOn()?
+    '<h3>Sync ist verbunden ✓</h3><p>Jede Änderung wird automatisch in dein geheimes Gist gespeichert und auf deinen anderen Geräten geladen.</p>'+
+    '<div class="erow"><button class="btn primary" data-sync="now">Jetzt abgleichen</button><button class="btn danger" data-sync="off">Trennen</button><button class="btn" data-sync="close" style="margin-left:auto">Schließen</button></div>':
+    '<h3>Sync einrichten</h3><p>Token einfügen (GitHub, classic, nur Recht „gist“). Auf jedem Gerät einmal.</p>'+
+    '<input type="password" id="sync-tok" placeholder="ghp_…" autocomplete="off" style="width:100%;margin:8px 0">'+
+    '<div class="erow"><button class="btn primary" data-sync="connect">Verbinden</button><button class="btn" data-sync="close" style="margin-left:auto">Abbrechen</button></div>';
+  d.innerHTML='<div>'+inner+'</div>';document.body.appendChild(d);
+}
+function syncInit(){
+  if(syncOn())syncPull();
+  document.addEventListener('visibilitychange',function(){if(document.visibilityState==='visible')syncPull();});
+  window.addEventListener('online',function(){if(!syncOn())return;if(sync.pend)syncPush();else syncPull();});
+  setInterval(function(){if(syncOn()&&document.visibilityState==='visible'){if(sync.pend||sync.err)syncPush();else syncPull();}},45000);
+}
 
 /* ---------- Dateien ---------- */
 function saveFile(name,data){
@@ -753,6 +854,14 @@ document.addEventListener('click',function(ev){
   if(t.closest('#prev')){ui.m--;if(ui.m<0){ui.m=11;ui.y--;}ui.sel=null;render();return;}
   if(t.closest('#next')){ui.m++;if(ui.m>11){ui.m=0;ui.y++;}ui.sel=null;render();return;}
   if(t.closest('#export')){exportXlsx();return;}
+  if(t.closest('#sync-btn')){syncBox();return;}
+  var sy=t.closest('[data-sync]');
+  if(sy){var sa=sy.dataset.sync;
+    if(sa==='close'){var bx=document.getElementById('syncbox');if(bx)bx.remove();}
+    else if(sa==='connect'){syncConnect(document.getElementById('sync-tok').value).then(function(ok){if(ok){var bx1=document.getElementById('syncbox');if(bx1)bx1.remove();}});}
+    else if(sa==='now'){if(sync.pend)syncPush();else syncPull();var bx2=document.getElementById('syncbox');if(bx2)bx2.remove();}
+    else if(sa==='off'){syncOff();syncBox();}
+    return;}
   if(t.closest('#bk-save')){exportBackup();return;}
   if(t.closest('#bk-load')){document.getElementById('bk-file').click();return;}
   var c=t.closest('[data-cell]');
@@ -808,7 +917,7 @@ document.addEventListener('change',function(ev){
   else dr[f]=t.value;
   markDirty();render();
 });
-render();initStore();
+render();initStore();syncInit();
 if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('./sw.js').catch(function(){});});}
 })();
 </script>
