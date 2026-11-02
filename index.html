@@ -331,7 +331,7 @@ function eff(dr,y,m,d){
   var w=dow(y,m,d);
   if(!isActive(dr,y,m,d))return {s:'none'};
   if(ov&&ov.k==='t')return {s:'work',t:ov.t,ov:1};
-  if(ov&&ov.k!=='w')return {s:'off',why:ov.k,ov:1};
+  if(ov&&ov.k!=='w')return {s:'off',why:ov.k,ov:ov.a?0:1};
   var forced=!!ov;
   if(!forced){
     if(dr.wkOnly&&(dr.wdays||[6,0]).indexOf(w)<0)return {s:'none'};
@@ -340,7 +340,7 @@ function eff(dr,y,m,d){
     if(w>=1&&w<=4&&offDayFor(dr,n)===w)return {s:'off',why:'auto'};
   }
   var t=((w===5||w===6)&&dr.wtime)?dr.wtime:dr.time;
-  return {s:'work',t:t,ov:forced?1:0};
+  return {s:'work',t:t,ov:(forced&&!ov.a)?1:0};
 }
 function issuesHTML(y,m){
   var n=dim(y,m),out=[],real=function(e){return e.s==='off'&&e.why!=='U'&&e.why!=='K';};
@@ -523,8 +523,21 @@ function setOverride(id,d,val){
   var md=mdata(ui.y,ui.m,true),k=id+'|'+d;
   if(val)md.cells[k]=val;else delete md.cells[k];
 }
+/* Beim ersten Ändern eines Monats wird der automatische Plan eingefroren: danach ändert sich nur noch genau das Feld, das du antippst. */
+function freezeMonth(y,m){
+  var md=mdata(y,m,true),n=dim(y,m);
+  state.drivers.forEach(function(dr){
+    for(var d=fd(y,m);d<=n;d++){
+      var key=dr.id+'|'+d;if(md.cells[key])continue;
+      var e=eff(dr,y,m,d);
+      if(e.s==='work')md.cells[key]={k:'w',a:1};
+      else if(e.s==='off')md.cells[key]={k:e.why==='rot'||e.why==='auto'?'off':e.why,a:1};
+    }
+  });
+}
 function applyEdit(val){
   var s=ui.sel;if(!s)return;
+  freezeMonth(ui.y,ui.m);
   var all=document.getElementById('ed-all').checked,w=dow(ui.y,ui.m,s.d);
   if(all){for(var d=1;d<=dim(ui.y,ui.m);d++){if(dow(ui.y,ui.m,d)===w)setOverride(s.id,d,val);}}
   else setOverride(s.id,s.d,val);

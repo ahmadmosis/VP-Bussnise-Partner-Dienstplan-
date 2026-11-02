@@ -1,4 +1,4 @@
-# VP Business Plan Dienstplan
+# BP Business Plan Dienstplan
 
 Eigenständige Web-App (PWA). Keine Anmeldung, kein Server. Die Daten bleiben im Browser des Geräts.
 
@@ -24,4 +24,4 @@ Die Bibliothek für den Excel-Export lädt beim ersten Export aus dem Internet u
 Die Namen der Fahrer stehen als Startwerte im Code (index.html). Bei einem öffentlichen Repository kann jeder mit dem Link sie lesen.
 
 ## Neue Version veröffentlichen
-Dateien im Repository ersetzen und in `sw.js` die Zahl bei `dienstplan-v6` erhöhen (z. B. `dienstplan-v7`).
+Dateien im Repository ersetzen und in `sw.js` die Zahl bei `dienstplan-v7` erhöhen (z. B. `dienstplan-v8`).
