@@ -1,4 +1,4 @@
-# VP Business Plan Dienstplan
+# VP Business Partner Dienstplan
 
 Eigenständige Web-App (PWA). Keine Anmeldung, kein Server. Die Daten bleiben im Browser des Geräts.
 
