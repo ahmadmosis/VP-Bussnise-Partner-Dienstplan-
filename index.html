@@ -123,6 +123,7 @@ input[type=text],select{width:100%}
 @media (max-width:560px){.line{grid-template-columns:1fr}.line .t{margin-top:-2px}}
 /* Fahrer */
 .tw{overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+details.adv{margin:14px 0}details.adv summary{cursor:pointer;color:var(--muted);font-size:13px;padding:6px 0}.addbox{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px;margin-bottom:12px;display:grid;gap:8px}
 table.dr{border-collapse:collapse;width:100%;min-width:860px}
 .dr th{font-size:12px;text-align:left;color:var(--muted);font-weight:600;padding:8px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
 .dr td{padding:5px 6px;border-bottom:1px solid var(--line)}
@@ -224,7 +225,7 @@ function normTime(t){var p=t.split(/\s*[-–]\s*/);function f(x){var q=x.split('
 /* Fahrer mit "Letzter Arbeitstag" (lastDay, JJJJ-MM-TT) arbeiten danach nicht mehr */
 /* Plan beginnt am state.start (JJJJ-MM-TT): frühere Tage dieses Monats werden nicht angezeigt */
 function fd(y,m){var s=state.start;if(!s)return 1;var p=s.split('-');return (+p[0]===y&&+p[1]-1===m)?Math.max(1,+p[2]):1;}
-function isActive(dr,y,m,d){return !dr.lastDay||Date.UTC(y,m,d)<=Date.parse(dr.lastDay+'T00:00:00Z');}
+function isActive(dr,y,m,d){var t=Date.UTC(y,m,d);return (!dr.firstDay||t>=Date.parse(dr.firstDay+'T00:00:00Z'))&&(!dr.lastDay||t<=Date.parse(dr.lastDay+'T00:00:00Z'));}
 function sunDate(n){return new Date(ANCHOR+(7*n+6)*864e5);}
 function activeSun(dr,n){var t=sunDate(n);return isActive(dr,t.getUTCFullYear(),t.getUTCMonth(),t.getUTCDate());}
 var CAP=2; /* höchstens so viele Fahrer pro Gruppe gleichzeitig frei */
@@ -351,7 +352,7 @@ function issuesHTML(y,m){
     for(var d=fd(y,m);d<=n;d++){
       var w=dow(y,m,d);
       if((w===5||w===6)&&real(eff(dr,y,m,d)))out.push(dr.name+': '+DAY_S[w]+' '+dstr(y,m,d)+' frei (Fr/Sa ist Pflicht)');
-      if(w===1&&d+6<=n&&!(dr.lastDay&&Date.UTC(y,m,d+6)>Date.parse(dr.lastDay+'T00:00:00Z'))){
+      if(w===1&&d+6<=n&&!(dr.lastDay&&Date.UTC(y,m,d+6)>Date.parse(dr.lastDay+'T00:00:00Z'))&&!(dr.firstDay&&Date.UTC(y,m,d)<Date.parse(dr.firstDay+'T00:00:00Z'))){
         var c=0;for(var k=0;k<7;k++)if(real(eff(dr,y,m,d+k)))c++;
         var wl='Woche '+pad(d)+'.–'+pad(d+6)+'.'+pad(m+1)+'.';
         if(c===0)out.push(dr.name+': '+wl+' ohne freien Tag');
@@ -461,7 +462,7 @@ function planHTML(){
   });
   h+='</tfoot></table></div>'+issuesHTML(y,m);
   if(ui.sel)h+=editorHTML();
-  else h+='<p class="hint">Tippe auf ein Feld, um die Schicht für diesen Tag zu ändern. Änderungen werden automatisch gespeichert. · Version 10</p>';
+  else h+='<p class="hint">Tippe auf ein Feld, um die Schicht für diesen Tag zu ändern. Änderungen werden automatisch gespeichert. · Version 11</p>';
   return h;
 }
 function editorHTML(){
@@ -503,18 +504,32 @@ function tageHTML(){
   return h+'</div>';
 }
 function fahrerHTML(){
-  var h='<div class="tw"><table class="dr"><thead><tr><th>Name</th><th>Gruppe</th><th>Feste Arbeitstage</th><th>Wochenfrei Mo–Do automatisch</th><th>Freier Tag</th><th>Freie Sonntage pro Monat</th><th>Letzter Arbeitstag</th><th></th></tr></thead><tbody>';
+  var inp='background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:5px 8px;min-height:34px;font:inherit;color:var(--fg)';
+  var gsel=function(attr,sel){return '<select '+attr+' style="'+inp+'">'+GROUPS.map(function(g){return '<option'+(g.k===sel?' selected':'')+'>'+g.k+'</option>';}).join('')+'</select>';};
+  var h='<div class="addbox"><b>Neuen Fahrer hinzufügen</b><div class="erow">'+
+    '<input type="text" id="new-name" placeholder="Name" aria-label="Name" style="'+inp+';flex:1;min-width:140px">'+
+    gsel('id="new-group" aria-label="Gruppe"','Frühschicht')+
+    '<label>ab <input type="date" id="new-from" style="'+inp+'" aria-label="Erster Arbeitstag"></label>'+
+    '<button class="btn primary" id="add">Hinzufügen</button></div></div>';
+  h+='<div class="tw"><table class="dr" style="min-width:0"><thead><tr><th>Name</th><th>Gruppe</th><th></th></tr></thead><tbody>';
   state.drivers.forEach(function(d){
-    h+='<tr data-id="'+d.id+'"><td><input type="text" data-f="name" value="'+esc(d.name)+'" aria-label="Name"></td>'+
-    '<td><select data-f="group">'+GROUPS.map(function(g){return '<option'+(g.k===d.group?' selected':'')+'>'+g.k+'</option>';}).join('')+'</select></td>'+
+    h+='<tr data-id="'+d.id+'"><td><input type="text" data-f="name" value="'+esc(d.name)+'" aria-label="Name" style="'+inp+';width:100%"></td>'+
+    '<td>'+gsel('data-f="group" aria-label="Gruppe"',d.group)+'</td>'+
+    '<td><button class="btn sm danger" data-del="'+d.id+'">Löschen</button></td></tr>';
+  });
+  h+='</tbody></table></div>';
+  h+='<details class="adv"><summary>Erweiterte Einstellungen (automatische Vorschläge für noch nicht bearbeitete Monate)</summary><div class="tw"><table class="dr"><thead><tr><th>Name</th><th>Feste Arbeitstage</th><th>Wochenfrei Mo–Do automatisch</th><th>Freier Tag</th><th>Freie Sonntage pro Monat</th><th>Erster Arbeitstag</th><th>Letzter Arbeitstag</th></tr></thead><tbody>';
+  state.drivers.forEach(function(d){
+    h+='<tr data-id="'+d.id+'"><td><b>'+esc(d.name)+'</b></td>'+
     '<td><input type="text" data-f="wdays" value="'+esc((d.wdays||[]).slice().sort(function(a,b){return ((a+6)%7)-((b+6)%7);}).map(function(k){return DAY_S[k];}).join(', '))+'" placeholder="alle Tage" aria-label="Feste Arbeitstage" style="min-width:120px"></td>'+
     '<td class="c"><input type="checkbox" data-f="autoOff"'+(d.autoOff!==false?' checked':'')+' aria-label="Wochenfrei automatisch"></td>'+
     '<td><select data-f="offPref" aria-label="Fester freier Tag">'+[['0','Automatisch'],['1','Montag'],['2','Dienstag'],['3','Mittwoch'],['4','Donnerstag']].map(function(o){return '<option value="'+o[0]+'"'+((d.offPref||0)===+o[0]?' selected':'')+'>'+o[1]+'</option>';}).join('')+'</select></td>'+
-    '<td><input type="number" min="0" max="5" data-f="sunOff" value="'+(d.sunOff===undefined?2:d.sunOff)+'" style="width:64px;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:5px 8px;min-height:32px" aria-label="Freie Sonntage pro Monat"></td>'+
-    '<td><input type="date" data-f="lastDay" value="'+esc(d.lastDay||'')+'" style="background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:5px 8px;min-height:32px" aria-label="Letzter Arbeitstag"></td>'+
-    '<td><button class="btn sm danger" data-del="'+d.id+'">Löschen</button></td></tr>';
+    '<td><input type="number" min="0" max="5" data-f="sunOff" value="'+(d.sunOff===undefined?2:d.sunOff)+'" style="width:64px;'+inp+'" aria-label="Freie Sonntage pro Monat"></td>'+
+    '<td><input type="date" data-f="firstDay" value="'+esc(d.firstDay||'')+'" style="'+inp+'" aria-label="Erster Arbeitstag"></td>'+
+    '<td><input type="date" data-f="lastDay" value="'+esc(d.lastDay||'')+'" style="'+inp+'" aria-label="Letzter Arbeitstag"></td></tr>';
   });
-  h+='</tbody></table></div><div class="row-actions"><button class="btn primary" id="add">Fahrer hinzufügen</button><button class="btn danger" id="reset">Alles auf den Entwurf aus der Excel-Datei zurücksetzen</button></div>'+
+  h+='</tbody></table></div></details>';
+  h+='<div class="row-actions"><button class="btn danger" id="reset">Alles auf den Entwurf aus der Excel-Datei zurücksetzen</button></div>'+
   '<p class="hint">Plan beginnt am <input type="date" id="start-date" value="'+esc(state.start||'')+'" style="background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:4px 8px;min-height:30px" aria-label="Plan beginnt am"> (frühere Tage dieses Monats werden ausgeblendet)</p>'+
   '<p class="hint">Einzelne Tage änderst du im Plan. Freie Sonntage: Pro Gruppe sind sonntags höchstens zwei Fahrer frei. Die Sonntage werden fair verteilt (Wunsch: so viele pro Monat, wie in der Spalte steht, Standard 2) und möglichst nicht hintereinander. Mit „Letzter Arbeitstag“ endet der Plan eines Fahrers. Wer Sonntag frei hat, hat damit seinen freien Tag dieser Woche. Wer Sonntag arbeitet, bekommt automatisch einen freien Tag zwischen Montag und Donnerstag, verteilt auf die Fahrer der Gruppe. Die Wochen laufen von Montag bis Sonntag, über Monatsgrenzen hinweg. Mit „Freier Tag“ legst du für einen Fahrer einen festen Wochentag fest (z. B. Imad immer Mittwoch). Im Plan kannst du jeden Tag von Hand ändern.</p>';
   return h;
@@ -625,91 +640,6 @@ async function exportXlsx(){
     for(var d3=f0;d3<=n;d3++){var cc=ws.getCell(row,d3-f0+3);cc.value=cnt[d3][i];style(cc,{bg:GREY,size:10,bold:true});}
     ws.getRow(row).height=18;row++;
   });
-
-  /* ---- Blatt: Liste zum Filtern (eine Zeile pro Fahrer und Tag) ---- */
-  var wl=wb.addWorksheet('Liste (Filter)',{views:[{state:'frozen',ySplit:3,showGridLines:false}],
-    pageSetup:{orientation:'portrait',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0,printTitlesRow:'3:3'}});
-  [13,14,20,14,17].forEach(function(x,i){wl.getColumn(i+1).width=x;});
-  wl.mergeCells(1,1,1,5);var tl=wl.getCell(1,1);tl.value='Liste zum Filtern · '+monthName;tl.font={name:FN,size:18,bold:true,color:{argb:INK}};tl.alignment={horizontal:'left',vertical:'middle'};wl.getRow(1).height=30;
-  wl.mergeCells(2,1,2,5);var tp=wl.getCell(2,1);
-  tp.value='So filterst du: Pfeil in der Kopfzeile anklicken. Fahrer = ein Name zeigt den ganzen Monat dieses Fahrers. Datum = ein Tag zeigt alle Fahrer an diesem Tag. Status = Frei zeigt, wer frei hat; Status = Dienst zeigt, wer arbeitet.';
-  tp.font={name:FN,size:10,italic:true,color:{argb:'FF667085'}};tp.alignment={horizontal:'left',vertical:'middle',wrapText:true};wl.getRow(2).height=34;
-  ['Datum','Wochentag','Fahrer','Gruppe','Status'].forEach(function(hd,i){var ch=wl.getCell(3,i+1);ch.value=hd;style(ch,{bold:true,color:'FFFFFFFF',bg:INK,size:11,h:'left'});ch.alignment={horizontal:'left',vertical:'middle',indent:1};});
-  wl.getRow(3).height=24;
-  var lr=4;
-  for(var dl2=f0;dl2<=n;dl2++){
-    var wl2=dow(y,m,dl2),wkl=(wl2===0||wl2===6);
-    drs.forEach(function(dr){
-      var el=eff(dr,y,m,dl2),cl=COL[gcls(dr.group)],stat;
-      if(el.s==='work'){stat='Dienst';}
-      else if(el.s==='off'){stat=el.why==='U'?'Urlaub':el.why==='K'?'Krank':'Frei';}
-      else stat='Nicht eingeplant';
-      var base=wkl?WK:'FFFFFFFF';
-      var vals2=[new Date(Date.UTC(y,m,dl2)),DAY_L[wl2],dr.name,dr.group,stat];
-      vals2.forEach(function(v,i){
-        var cx=wl.getCell(lr,i+1);cx.value=v;
-        style(cx,{bg:base,h:'left',size:10,bold:i===2});
-        cx.alignment={horizontal:'left',vertical:'middle',indent:1};
-        if(i===0)cx.numFmt='dd.mm.yyyy';
-        if(i===3){fill(cx,cl.bg);cx.font={name:FN,size:10,color:{argb:cl.fg}};}
-        if(i===4){
-          if(stat==='Dienst'){fill(cx,cl.bg);cx.font={name:FN,size:10,bold:true,color:{argb:cl.fg}};}
-          else if(stat==='Frei'){fill(cx,'FFE4E6E0');cx.font={name:FN,size:10,italic:true,color:{argb:'FF667085'}};}
-          else if(stat==='Urlaub'){fill(cx,'FFFFE8CC');cx.font={name:FN,size:10,bold:true,color:{argb:'FF8A4B00'}};}
-          else if(stat==='Krank'){fill(cx,'FFFADBD8');cx.font={name:FN,size:10,bold:true,color:{argb:'FF8A1F1F'}};}
-          else{cx.font={name:FN,size:10,color:{argb:'FFA0A6B2'}};}
-        }
-      });
-      wl.getRow(lr).height=18;lr++;
-    });
-  }
-  wl.autoFilter='A3:E'+(lr-1);
-
-  /* ---- Blatt 2: Tagesplan ---- */
-  var wt=wb.addWorksheet('Tagesplan',{views:[{state:'frozen',ySplit:3,showGridLines:false}],
-    pageSetup:{orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0,printTitlesRow:'3:3'}});
-  var W=[12,13,40,46,40,22,34,30];W.forEach(function(x,i){wt.getColumn(i+1).width=x;});
-  wt.mergeCells(1,1,1,8);var t2=wt.getCell(1,1);t2.value='Tagesplan · '+monthName;t2.font={name:FN,size:18,bold:true,color:{argb:INK}};t2.alignment={horizontal:'left',vertical:'middle'};wt.getRow(1).height=30;
-  wt.getRow(2).height=6;
-  ['Datum','Tag','Frühschicht','Nachtschicht','Flexibel','Part-time','Frei / Abwesend','Notiz'].forEach(function(h,i){var c3=wt.getCell(3,i+1);c3.value=h;style(c3,{bold:true,color:'FFFFFFFF',bg:INK,size:11,h:i<2?'center':'left'});if(i>=2)c3.alignment={horizontal:'left',vertical:'middle',indent:1};});
-  wt.getRow(3).height=24;
-  function lines(txt,wid){return txt.split('\n').reduce(function(s,l){return s+Math.max(1,Math.ceil(l.length/(wid*1.0)));},0);}
-  for(var d4=f0;d4<=n;d4++){
-    var w4=dow(y,m,d4),wk4=(w4===0||w4===6),g4=groupedLines(y,m,d4),by={'Frühschicht':[],'Nachtschicht':[],'Flexibel':[],'Part-time':[]};
-    g4.work.forEach(function(l){by[l.g].push(l.n.join(', '));});
-    var vals=[dstr(y,m,d4).slice(0,6),DAY_L[w4],by['Frühschicht'].join('\n'),by['Nachtschicht'].join('\n'),by['Flexibel'].join('\n'),by['Part-time'].join('\n'),g4.off.join('\n'),mdata(y,m).notes[d4]||''];
-    var rw=3+d4-f0+1,mx=1;
-    vals.forEach(function(v,i){
-      var c4=wt.getCell(rw,i+1);c4.value=v;
-      style(c4,{bg:wk4?WK:'FFFFFFFF',h:i<2?'center':'left',v:'top',wrap:true,bold:i===1&&wk4,size:10,color:i===6?'FF667085':INK});
-      if(i>=2)c4.alignment={horizontal:'left',vertical:'top',wrapText:true,indent:1};
-      if(i<2)c4.alignment={horizontal:'center',vertical:'top'};
-      mx=Math.max(mx,lines(v,W[i]-2));
-    });
-    wt.getRow(rw).height=Math.max(22,mx*14+8);
-  }
-
-  wt.autoFilter='A3:H'+(3+n-f0+1);
-
-  /* ---- Blatt 3: Übersicht ---- */
-  var wu=wb.addWorksheet('Übersicht',{views:[{showGridLines:false}],pageSetup:{orientation:'portrait',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0}});
-  [20,14,13,12,16,14].forEach(function(x,i){wu.getColumn(i+1).width=x;});
-  wu.mergeCells(1,1,1,6);var t3=wu.getCell(1,1);t3.value='Übersicht pro Fahrer · '+monthName;t3.font={name:FN,size:18,bold:true,color:{argb:INK}};t3.alignment={horizontal:'left',vertical:'middle'};wu.getRow(1).height=30;
-  wu.getRow(2).height=6;
-  ['Fahrer','Gruppe','Diensttage','Freie Tage','Freie Sonntage','Urlaub/Krank'].forEach(function(h,i){var c5=wu.getCell(3,i+1);c5.value=h;style(c5,{bold:true,color:'FFFFFFFF',bg:INK,size:11,h:i<2?'left':'center'});});
-  wu.getRow(3).height=24;
-  drs.forEach(function(dr,i){
-    var work=0,free=0,sun=0,uk=0;
-    for(var d5=f0;d5<=n;d5++){var e5=eff(dr,y,m,d5);if(e5.s==='work')work++;else if(e5.s==='off'){if(e5.why==='U'||e5.why==='K')uk++;else{free++;if(dow(y,m,d5)===0)sun++;}}}
-    var cl=COL[gcls(dr.group)],rw2=4+i;
-    [dr.name,dr.group,work,free,sun,uk].forEach(function(v,j){
-      var c6=wu.getCell(rw2,j+1);c6.value=v;style(c6,{h:j<2?'left':'center',bold:j===0,bg:j===1?cl.bg:'FFFFFFFF',color:j===1?cl.fg:INK,size:10});
-      if(j<2)c6.alignment={horizontal:'left',vertical:'middle',indent:1};
-    });
-    wu.getRow(rw2).height=20;
-  });
-
-  wu.autoFilter='A3:F'+(3+drs.length);
 
   var buf=await wb.xlsx.writeBuffer();
   try{await dl.save({filename:'Dienstplan_Paderborn_'+MONTHS[m]+'_'+y+'.xlsx',data:buf});toast('Datei gespeichert');}
@@ -848,6 +778,7 @@ function importBackup(file){
 
 /* ---------- Events ---------- */
 var resetArm=false,delArm=null;
+var GTIME={'Frühschicht':['06:00–18:00',''],'Nachtschicht':['18:00–06:00',''],'Flexibel':['12:00–00:00','17:00–05:00'],'Part-time':['06:00–18:00','']};
 document.addEventListener('click',function(ev){
   var t=ev.target;
   var tab=t.closest('[data-tab]');if(tab){ui.tab=tab.dataset.tab;render();return;}
@@ -879,11 +810,15 @@ document.addEventListener('click',function(ev){
     return;}
   var cp=t.closest('[data-copy]');if(cp){copyText(dayText(+cp.dataset.copy));return;}
   if(t.closest('#add')){
-    var id='d'+Date.now().toString(36);
-    state.drivers.push(D(id,'Neuer Fahrer','Frühschicht','06:00–18:00'));markDirty();render();return;}
+    var nn=(document.getElementById('new-name').value||'').trim();
+    if(!nn){toast('Bitte einen Namen eingeben');return;}
+    var ng=document.getElementById('new-group').value,nf=document.getElementById('new-from').value;
+    var id='d'+Date.now().toString(36),tm=GTIME[ng]||GTIME['Frühschicht'];
+    var nd=D(id,nn,ng,tm[0],tm[1]);if(nf)nd.firstDay=nf;
+    state.drivers.push(nd);markDirty();render();toast(nn+' hinzugefügt');return;}
   var del=t.closest('[data-del]');
   if(del){var id2=del.dataset.del;
-    if(delArm===id2){state.drivers=state.drivers.filter(function(x){return x.id!==id2;});delArm=null;markDirty();render();}
+    if(delArm===id2){state.drivers=state.drivers.filter(function(x){return x.id!==id2;});Object.keys(state.months).forEach(function(k){var c=state.months[k].cells;Object.keys(c).forEach(function(q){if(q.indexOf(id2+'|')===0)delete c[q];});});delArm=null;markDirty();render();}
     else{delArm=id2;del.textContent='Wirklich löschen?';}
     return;}
   if(t.closest('#reset')){
@@ -906,6 +841,8 @@ document.addEventListener('change',function(ev){
   else if(f==='autoOff')dr.autoOff=t.checked;
   else if(f==='offPref')dr.offPref=parseInt(t.value,10)||0;
   else if(f==='lastDay')dr.lastDay=t.value||'';
+  else if(f==='firstDay')dr.firstDay=t.value||'';
+  else if(f==='group'){dr.group=t.value;var gt=GTIME[t.value];if(gt&&!dr.wkOnly){dr.time=gt[0];dr.wtime=gt[1];}}
   else if(f==='sunOff')dr.sunOff=Math.max(0,Math.min(5,parseInt(t.value,10)||0));
   else if(f==='time'||f==='wtime'){
     var v=t.value.trim();
