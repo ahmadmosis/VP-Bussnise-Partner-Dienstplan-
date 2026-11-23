@@ -25,3 +25,9 @@ Die Namen der Fahrer stehen als Startwerte im Code (index.html). Bei einem öffe
 
 ## Neue Version veröffentlichen
 Dateien im Repository ersetzen und in `sw.js` die Zahl bei `dienstplan-v11` erhöhen (z. B. `dienstplan-v12`).
+
+## Wunsch-App für die Fahrer
+
+Ordner `wunsch/` mit hochladen (Add file → Upload files, den Ordner `wunsch` samt Inhalt). Die App liegt dann unter `…/wunsch/`.
+In `wunsch/config.js` stehen die beiden Supabase-Werte (Project URL und anon public key). Die Datenbank richtest du mit `wunsch_setup.sql` ein (Supabase → SQL Editor → Run).
+Im Dienstplan: Tab „Wünsche“ → verbinden, PINs erstellen, Wünsche laden und übernehmen.

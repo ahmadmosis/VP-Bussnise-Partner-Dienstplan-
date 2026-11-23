@@ -162,6 +162,7 @@ table.dr{border-collapse:collapse;width:100%;min-width:860px}
     <button role="tab" data-tab="plan" aria-selected="true">Plan</button>
     <button role="tab" data-tab="tage" aria-selected="false">Tage</button>
     <button role="tab" data-tab="fahrer" aria-selected="false">Fahrer</button>
+    <button role="tab" data-tab="wuensche" aria-selected="false">Wünsche</button>
   </nav>
 
   <main id="main"></main>
@@ -425,6 +426,7 @@ function render(){
   document.getElementById('prev').parentNode.style.visibility=ui.tab==='fahrer'?'hidden':'visible';
   if(ui.tab==='plan')main.innerHTML=planHTML();
   else if(ui.tab==='tage')main.innerHTML=tageHTML();
+  else if(ui.tab==='wuensche')main.innerHTML=wuenscheHTML();
   else main.innerHTML=fahrerHTML();
   var sc2=main.querySelector('.scroll');if(sc2){sc2.scrollLeft=left;sc2.scrollTop=top;}
 }
@@ -462,7 +464,7 @@ function planHTML(){
   });
   h+='</tfoot></table></div>'+issuesHTML(y,m);
   if(ui.sel)h+=editorHTML();
-  else h+='<p class="hint">Tippe auf ein Feld, um die Schicht für diesen Tag zu ändern. Änderungen werden automatisch gespeichert. · Version 11</p>';
+  else h+='<p class="hint">Tippe auf ein Feld, um die Schicht für diesen Tag zu ändern. Änderungen werden automatisch gespeichert. · Version 15</p>';
   return h;
 }
 function editorHTML(){
@@ -744,6 +746,122 @@ function syncInit(){
   window.addEventListener('online',function(){if(!syncOn())return;if(sync.pend)syncPush();else syncPull();});
   setInterval(function(){if(syncOn()&&document.visibilityState==='visible'){if(sync.pend||sync.err)syncPush();else syncPull();}},45000);
 }
+/* ---------- Wünsche (Wunsch-App der Fahrer) ---------- */
+var WK='dienstplan-wunsch';
+var wcfg={url:'',key:'',admin:''};
+try{var wj=JSON.parse(localStorage.getItem(WK)||'{}');wcfg.url=wj.url||'';wcfg.key=wj.key||'';wcfg.admin=wj.admin||'';}catch(e){}
+var wi={items:[],names:[],loaded:false,busy:false,msg:'',pins:{}};
+function wOn(){return !!(wcfg.url&&wcfg.key&&wcfg.admin);}
+function wSave(){try{localStorage.setItem(WK,JSON.stringify(wcfg));}catch(e){}}
+function wUrl(){try{return new URL('wunsch/',location.href).href;}catch(e){return 'wunsch/';}}
+function wHdr(){var h={'apikey':wcfg.key,'Content-Type':'application/json'};if(/^eyJ/.test(wcfg.key))h['Authorization']='Bearer '+wcfg.key;return h;}
+function wrpc(fn,body){
+  return fetch(wcfg.url.replace(/\/+$/,'')+'/rest/v1/rpc/'+fn,{method:'POST',headers:wHdr(),body:JSON.stringify(body||{})})
+    .then(function(r){if(!r.ok)throw new Error('http');return r.json();});
+}
+function wErr(r){return r&&r.error==='locked'?'Zu viele falsche Versuche. 10 Minuten warten.':r&&r.error==='bad'?'Admin-Schlüssel falsch.':r&&r.error==='setup'?'SQL-Skript wurde noch nicht ausgeführt.':'Fehler.';}
+function wMonthKey(){return ui.y+'-'+pad(ui.m+1);}
+async function wLoad(){
+  if(!wOn()||wi.busy)return;
+  wi.busy=true;wi.msg='Lädt …';render();
+  try{
+    var r=await wrpc('wunsch_admin_list',{p_key:wcfg.admin,p_month:wMonthKey()});
+    if(r.ok){wi.items=r.items||[];wi.names=r.names||[];wi.loaded=true;wi.msg='';wi.month=wMonthKey();}
+    else wi.msg=wErr(r);
+  }catch(e){wi.msg='Keine Verbindung.';}
+  wi.busy=false;render();
+}
+function wFor(name){for(var i=0;i<wi.items.length;i++)if(wi.items[i].name===name)return wi.items[i];return null;}
+function wDayList(days){return (days||[]).map(function(d){return DAY_S[dow(ui.y,ui.m,d)]+' '+d+'.';}).join(', ');}
+function wWarn(dr,d){
+  var c=0;
+  state.drivers.forEach(function(x){
+    if(x.group!==dr.group||x.wkOnly)return;
+    var e=eff(x,ui.y,ui.m,d),w=wFor(x.name),wished=w&&w.days.indexOf(d)>=0;
+    if((e.s==='off'&&e.why!=='U'&&e.why!=='K')||(wished&&e.s==='work'))c++;
+  });
+  return c>CAP?(c+' frei in '+dr.group):'';
+}
+function wuenscheHTML(){
+  var h='';
+  if(wi.month&&wi.month!==wMonthKey()){wi.loaded=false;wi.items=[];wi.msg='';}
+  if(wOn()&&!wi.loaded&&!wi.busy&&!wi.msg)setTimeout(wLoad,0);
+  var inp='background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:6px 8px;min-height:34px;font:inherit;color:var(--fg);width:100%';
+  if(!wOn()){
+    return '<div class="addbox"><b>Wunsch-App verbinden</b><p class="hint" style="margin:0">Trage die Werte aus Supabase ein (Project URL, anon public key) und deinen Admin-Schlüssel aus dem SQL-Skript.</p>'+
+      '<input id="w-url" placeholder="Project URL (https://….supabase.co)" value="'+esc(wcfg.url)+'" style="'+inp+'">'+
+      '<input id="w-key" placeholder="anon public key" value="'+esc(wcfg.key)+'" style="'+inp+'">'+
+      '<input id="w-admin" type="password" placeholder="Admin-Schlüssel" value="'+esc(wcfg.admin)+'" style="'+inp+'">'+
+      '<div class="erow"><button class="btn primary" data-w="cfg">Verbinden</button></div><div class="hint">'+esc(wi.msg)+'</div></div>';
+  }
+  h+='<div class="addbox"><div class="erow"><b>Wünsche für '+MONTHS[ui.m]+' '+ui.y+'</b><button class="btn sm" data-w="load" style="margin-left:auto">Aktualisieren</button></div>';
+  if(wi.msg)h+='<div class="hint">'+esc(wi.msg)+'</div>';
+  if(!wi.loaded&&!wi.busy)h+='<div class="hint">Tippe auf „Aktualisieren“, um die Wünsche zu laden.</div>';
+  if(wi.loaded){
+    var ans=state.drivers.filter(function(dr){return wFor(dr.name);}).length,withAcc=state.drivers.filter(function(dr){return wi.names.indexOf(dr.name)>=0;}).length;
+    h+='<p class="hint" style="margin:0">'+ans+' von '+withAcc+' haben geantwortet.</p><div class="tw"><table class="dr" style="min-width:0"><thead><tr><th>Fahrer</th><th>Wunsch frei</th><th>Notiz</th><th></th></tr></thead><tbody>';
+    sortedDrivers().forEach(function(dr){
+      var w=wFor(dr.name);
+      var cells=w&&!w.days.length?'<span style="color:var(--ok)">Kein Wunsch ✓</span>':w&&w.days.length?w.days.map(function(d){
+        var wn=wWarn(dr,d),bad=(dow(ui.y,ui.m,d)===5||dow(ui.y,ui.m,d)===6);
+        return '<span title="'+esc(bad?'Fr/Sa ist normalerweise Pflicht':wn)+'" style="'+((bad||wn)?'color:var(--danger);font-weight:600':'')+'">'+DAY_S[dow(ui.y,ui.m,d)]+' '+d+'.'+((bad||wn)?' ⚠':'')+'</span>';
+      }).join(', '):'<span style="color:var(--muted)">'+(wi.names.indexOf(dr.name)<0?'kein Zugang':'keine Angabe')+'</span>';
+      h+='<tr><td><b>'+esc(dr.name)+'</b></td><td>'+cells+'</td><td>'+esc(w?w.note:'')+'</td><td>'+(w&&w.days.length?'<button class="btn sm" data-w="apply" data-n="'+esc(dr.name)+'">Übernehmen</button>':'')+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+    h+='<div class="erow"><button class="btn primary" data-w="applyall">Alle Wünsche übernehmen</button></div>';
+    h+='<p class="hint">Übernehmen setzt die Wunschtage im Plan auf „frei“, auch Fr/Sa. ⚠ = Fr/Sa (normalerweise Pflicht) oder zu viele aus einer Gruppe frei, du entscheidest. Danach kannst du jeden Tag im Plan von Hand ändern.</p>';
+  }
+  h+='</div>';
+  h+='<div class="addbox"><b>Zugang für Fahrer (PIN)</b><p class="hint" style="margin:0">Link zur Wunsch-App: <b>'+esc(wUrl())+'</b></p><div class="tw"><table class="dr" style="min-width:0"><tbody>';
+  state.drivers.forEach(function(dr){
+    var has=wi.names.indexOf(dr.name)>=0,pin=wi.pins[dr.name];
+    h+='<tr><td><b>'+esc(dr.name)+'</b><div class="hint" style="margin:0">'+(pin?('Neue PIN: <b>'+esc(pin)+'</b>'):(has?'Zugang vorhanden':'noch kein Zugang'))+'</div></td><td style="text-align:right;white-space:nowrap">'+
+      '<button class="btn sm" data-w="pin" data-n="'+esc(dr.name)+'">'+(has?'Neue PIN':'PIN erstellen')+'</button>'+(has?' <button class="btn sm danger" data-w="rm" data-n="'+esc(dr.name)+'">Zugang sperren</button>':'')+
+      (pin?' <button class="btn sm primary" data-w="msg" data-n="'+esc(dr.name)+'">Nachricht kopieren</button>':'')+'</td></tr>';
+  });
+  h+='</tbody></table></div>';
+  var extra=wi.names.filter(function(n){return !state.drivers.some(function(d){return d.name===n;});});
+  if(extra.length)h+='<p class="hint">Zugänge ohne Fahrer im Plan: '+extra.map(function(n){return esc(n)+' <button class="btn sm danger" data-w="rm" data-n="'+esc(n)+'">Entfernen</button>';}).join(' · ')+'</p>';
+  h+='<div class="erow"><button class="btn sm" data-w="reset">Verbindung ändern</button></div></div>';
+  return h;
+}
+function wApply(names){
+  var md,n=dim(ui.y,ui.m),count=0,skipped=0;
+  freezeMonth(ui.y,ui.m);md=mdata(ui.y,ui.m,true);
+  wi.items.forEach(function(w){
+    if(names&&names.indexOf(w.name)<0)return;
+    var dr=state.drivers.filter(function(x){return x.name===w.name;})[0];if(!dr)return;
+    w.days.forEach(function(d){
+      var wd=dow(ui.y,ui.m,d);
+      if(d<fd(ui.y,ui.m)||d>n||!isActive(dr,ui.y,ui.m,d)){skipped++;return;}
+      md.cells[dr.id+'|'+d]={k:'off'};count++;
+    });
+  });
+  markDirty();render();
+  toast(count+' Tage übernommen'+(skipped?(', '+skipped+' übersprungen'):''));
+}
+function wPin(){return String(Math.floor(100000+Math.random()*900000));}
+async function wSetPin(name){
+  var pin=wPin();
+  try{
+    var r=await wrpc('wunsch_admin_set',{p_key:wcfg.admin,p_name:name,p_pin:pin});
+    if(!r.ok){toast(wErr(r));return;}
+    wi.pins[name]=pin;if(wi.names.indexOf(name)<0)wi.names.push(name);render();toast('PIN erstellt für '+name);
+  }catch(e){toast('Keine Verbindung');}
+}
+function wMsg(name){
+  return 'Hallo '+name+', hier kannst du deine Wunschtage für den nächsten Monat eintragen:\n'+wUrl()+'\nName: '+name+'\nPIN: '+wi.pins[name]+'\n\nمرحباً '+name+'، من هنا يمكنك إدخال أيام العطلة المطلوبة للشهر القادم:\n'+wUrl()+'\nالاسم: '+name+'\nالرمز: '+wi.pins[name];
+}
+
+function wAfterAdd(name){
+  if(!wOn())return;
+  wSetPin(name).then(function(){ui.tab='wuensche';render();});
+}
+function wAfterDel(name){
+  if(!wOn())return;
+  wrpc('wunsch_admin_remove',{p_key:wcfg.admin,p_name:name}).then(function(r){if(r.ok){wi.names=wi.names.filter(function(x){return x!==name;});toast('Zugang von '+name+' gelöscht');}}).catch(function(){toast('Zugang konnte nicht gelöscht werden (offline). Bitte im Tab Wünsche sperren.');});
+}
 
 /* ---------- Dateien ---------- */
 function saveFile(name,data){
@@ -794,6 +912,20 @@ document.addEventListener('click',function(ev){
     else if(sa==='off'){syncOff();syncBox();}
     return;}
   if(t.closest('#bk-save')){exportBackup();return;}
+  var wb=t.closest('[data-w]');
+  if(wb){var wa=wb.dataset.w,wn=wb.dataset.n;
+    if(wa==='cfg'){
+      wcfg.url=document.getElementById('w-url').value.trim();wcfg.key=document.getElementById('w-key').value.trim();wcfg.admin=document.getElementById('w-admin').value.trim();
+      if(!wOn()){wi.msg='Bitte alle drei Felder ausfüllen.';render();return;}
+      wSave();wi.loaded=false;wi.msg='';wLoad();}
+    else if(wa==='load')wLoad();
+    else if(wa==='apply')wApply([wn]);
+    else if(wa==='applyall')wApply(null);
+    else if(wa==='pin')wSetPin(wn);
+    else if(wa==='msg')copyText(wMsg(wn));
+    else if(wa==='rm'){wrpc('wunsch_admin_remove',{p_key:wcfg.admin,p_name:wn}).then(function(r){if(r.ok){wi.names=wi.names.filter(function(x){return x!==wn;});render();toast('Zugang entfernt');}else toast(wErr(r));}).catch(function(){toast('Keine Verbindung');});}
+    else if(wa==='reset'){wcfg={url:'',key:'',admin:''};wSave();wi.loaded=false;wi.items=[];wi.names=[];render();}
+    return;}
   if(t.closest('#bk-load')){document.getElementById('bk-file').click();return;}
   var c=t.closest('[data-cell]');
   if(c){var p=c.dataset.cell.split('|');var same=ui.sel&&ui.sel.id===p[0]&&ui.sel.d===+p[1];ui.sel=same?null:{id:p[0],d:+p[1]};render();return;}
@@ -815,10 +947,10 @@ document.addEventListener('click',function(ev){
     var ng=document.getElementById('new-group').value,nf=document.getElementById('new-from').value;
     var id='d'+Date.now().toString(36),tm=GTIME[ng]||GTIME['Frühschicht'];
     var nd=D(id,nn,ng,tm[0],tm[1]);if(nf)nd.firstDay=nf;
-    state.drivers.push(nd);markDirty();render();toast(nn+' hinzugefügt');return;}
+    state.drivers.push(nd);markDirty();render();toast(nn+' hinzugefügt');if(typeof wAfterAdd==='function')wAfterAdd(nn);return;}
   var del=t.closest('[data-del]');
   if(del){var id2=del.dataset.del;
-    if(delArm===id2){state.drivers=state.drivers.filter(function(x){return x.id!==id2;});Object.keys(state.months).forEach(function(k){var c=state.months[k].cells;Object.keys(c).forEach(function(q){if(q.indexOf(id2+'|')===0)delete c[q];});});delArm=null;markDirty();render();}
+    if(delArm===id2){var gone=state.drivers.filter(function(x){return x.id===id2;})[0];if(gone&&typeof wAfterDel==='function')wAfterDel(gone.name);state.drivers=state.drivers.filter(function(x){return x.id!==id2;});Object.keys(state.months).forEach(function(k){var c=state.months[k].cells;Object.keys(c).forEach(function(q){if(q.indexOf(id2+'|')===0)delete c[q];});});delArm=null;markDirty();render();}
     else{delArm=id2;del.textContent='Wirklich löschen?';}
     return;}
   if(t.closest('#reset')){
