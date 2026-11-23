@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>BP Wunsch</title>
+<meta name="theme-color" content="#1b2230">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="BP Wunsch">
+<style>
+:root{--bg:#f3f4f1;--surface:#fff;--fg:#1b2230;--muted:#667085;--line:#d9dcd5;--accent:#1f4fd8;--accent-fg:#fff;--danger:#b42318;--ok:#1a7f4b;--pick:#fde4b8;--pickfg:#6b4100;--dis:#eceee9;}
+@media (prefers-color-scheme:dark){:root{--bg:#12161d;--surface:#1a202a;--fg:#e6e9ef;--muted:#97a0b0;--line:#2e3746;--accent:#7aa2ff;--accent-fg:#0d1320;--danger:#ff8b7e;--ok:#58d08f;--pick:#5a4310;--pickfg:#ffe2a8;--dis:#222a36;color-scheme:dark}}
+*{box-sizing:border-box}
+html{padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0)}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:460px;margin:0 auto;padding:16px}
+h1{font-size:20px;margin:4px 0 2px}
+.sub{color:var(--muted);font-size:14px;margin:0 0 14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+label{display:block;font-size:14px;color:var(--muted);margin:10px 0 4px}
+select,input,textarea{width:100%;font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:11px 12px;min-height:44px}
+textarea{min-height:70px;resize:vertical}
+button{font:inherit;border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:8px;padding:11px 14px;min-height:44px;cursor:pointer}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:600;width:100%;margin-top:12px}
+button:disabled{opacity:.5}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.cal{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:10px}
+.cal .h{font-size:12px;color:var(--muted);text-align:center;padding:2px 0}
+.cal button{padding:0;min-height:46px;font-size:16px;border-radius:10px}
+.cal button.sel{background:var(--pick);color:var(--pickfg);border-color:var(--pickfg);font-weight:700}
+.cal button.dis{background:var(--dis);color:var(--muted);opacity:.6;cursor:not-allowed}
+.cal .e{min-height:46px}
+.msg{font-size:14px;margin-top:10px}.msg.err{color:var(--danger)}.msg.ok{color:var(--ok)}
+.count{font-size:14px;color:var(--muted);margin-top:10px}
+.small{font-size:13px;color:var(--muted)}
+.link{background:none;border:none;color:var(--accent);padding:6px;min-height:0;text-decoration:underline}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<main>
+  <div id="off" class="card" hidden>Die App ist noch nicht eingerichtet. Bitte Ahmad melden.</div>
+
+  <section id="login" hidden>
+    <h1>Wunsch-Tage · أيام العطلة</h1>
+    <p class="sub">Wähle deinen Namen und gib deine PIN ein.<br>اختر اسمك وأدخل الرمز السري.</p>
+    <div class="card">
+      <label for="name">Name · الاسم</label>
+      <select id="name"><option value="">Lädt …</option></select>
+      <label for="pin">PIN · الرمز</label>
+      <input id="pin" type="password" inputmode="numeric" autocomplete="off" placeholder="••••••">
+      <button class="primary" id="go">Anmelden · دخول</button>
+      <div class="msg" id="lmsg"></div>
+    </div>
+  </section>
+
+  <section id="app" hidden>
+    <div class="row"><h1 id="hello"></h1><button class="link" id="out">Abmelden</button></div>
+    <p class="sub">Tippe die Tage an, an denen du frei haben möchtest. Wenn dir kein Tag wichtig ist, sende „Kein Wunsch“.<br>اضغط على الأيام التي تريد فيها عطلة. وإذا لا يوجد يوم مهم لك، أرسل «لا أريد عطلة محددة».</p>
+    <div class="card">
+      <div class="row"><button id="prev" aria-label="Vorheriger Monat">‹</button><b id="mlabel"></b><button id="next" aria-label="Nächster Monat">›</button></div>
+      <div class="cal" id="cal"></div>
+      <div class="count" id="count"></div>
+      <p class="small">Freitag und Samstag sind normalerweise Pflicht. Wünsche dafür nur, wenn es wirklich wichtig ist; Ahmad entscheidet. · الجمعة والسبت عادةً دوام إلزامي. اطلب فقط عند الضرورة، والقرار لأحمد.</p>
+      <label for="note">Notiz (optional) · ملاحظة</label>
+      <textarea id="note" maxlength="300" placeholder="z. B. Arzttermin · مثلاً موعد طبيب"></textarea>
+      <button class="primary" id="send">Wunsch senden · إرسال</button>
+      <div class="msg" id="smsg"></div>
+    </div>
+    <p class="small">Du kannst deinen Wunsch jederzeit ändern und neu senden. Ahmad plant danach den Dienstplan; ein Wunsch ist keine Zusage.<br>يمكنك تعديل طلبك وإرساله مرة أخرى. الطلب ليس تأكيداً.</p>
+  </section>
+</main>
+<script src="config.js"></script>
+<script>
+(function(){
+'use strict';
+var cfg=window.WUNSCH||{};
+var MON=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+var $=function(i){return document.getElementById(i);};
+var S={name:'',pin:'',y:0,m:0,days:{},note:'',dirty:false,loaded:false};
+var now=new Date();
+var min={y:now.getFullYear(),m:now.getMonth()};
+function pad(n){return n<10?'0'+n:''+n;}
+function key(y,m){return y+'-'+pad(m+1);}
+function hdr(){var h={'apikey':cfg.key,'Content-Type':'application/json'};if(/^eyJ/.test(cfg.key))h['Authorization']='Bearer '+cfg.key;return h;}
+function rpc(fn,body){
+  return fetch(cfg.url+'/rest/v1/rpc/'+fn,{method:'POST',headers:hdr(),body:JSON.stringify(body||{})})
+    .then(function(r){if(!r.ok)throw new Error('http');return r.json();});
+}
+function err(e){return e==='locked'?'Zu viele Versuche. Bitte 10 Minuten warten. · انتظر 10 دقائق':e==='bad'?'Name oder PIN falsch. · الاسم أو الرمز خطأ':'Keine Verbindung. Bitte später nochmal. · لا يوجد اتصال';}
+function show(id){['login','app'].forEach(function(x){$(x).hidden=x!==id;});}
+function save(){try{localStorage.setItem('wunsch-login',JSON.stringify({name:S.name,pin:S.pin}));}catch(e){}}
+function forget(){try{localStorage.removeItem('wunsch-login');}catch(e){}}
+
+function monthDefault(){var y=now.getFullYear(),m=now.getMonth()+1;if(m>11){m=0;y++;}S.y=y;S.m=m;}
+function cmp(y,m){return (y-min.y)*12+(m-min.m);}
+function drawCal(){
+  var y=S.y,m=S.m,n=new Date(y,m+1,0).getDate(),first=(new Date(y,m,1).getDay()+6)%7;
+  $('mlabel').textContent=MON[m]+' '+y;
+  $('prev').disabled=cmp(y,m)<=0;$('next').disabled=cmp(y,m)>=3;
+  var h='';['Mo','Di','Mi','Do','Fr','Sa','So'].forEach(function(d){h+='<div class="h">'+d+'</div>';});
+  for(var i=0;i<first;i++)h+='<div class="e"></div>';
+  for(var d=1;d<=n;d++){
+    var w=(new Date(y,m,d).getDay()+6)%7,past=(cmp(y,m)===0&&d<=now.getDate()),dis=past;
+    h+='<button type="button" data-d="'+d+'" class="'+(dis?'dis':(S.days[d]?'sel':''))+'"'+(dis?' disabled':'')+'>'+d+'</button>';
+  }
+  $('cal').innerHTML=h;
+  var c=Object.keys(S.days).length;
+  $('send').textContent=c?'Wunsch senden · إرسال':'Kein Wunsch senden · لا أريد عطلة محددة';
+  $('count').textContent=c?(c+(c===1?' Wunschtag':' Wunschtage')+' ausgewählt · '+c+' محدد'):'Noch keine Tage ausgewählt · لم يتم اختيار أيام';
+}
+function loadMonth(){
+  S.loaded=false;$('smsg').textContent='Lädt …';$('smsg').className='msg';
+  return rpc('wunsch_get',{p_name:S.name,p_pin:S.pin,p_month:key(S.y,S.m)}).then(function(r){
+    if(!r.ok){logout();$('lmsg').textContent=err(r.error);$('lmsg').className='msg err';return;}
+    S.days={};(r.days||[]).forEach(function(d){S.days[d]=1;});S.note=r.note||'';S.dirty=false;S.loaded=true;
+    $('note').value=S.note;drawCal();
+    $('smsg').className='msg ok';
+    $('smsg').textContent=r.updated?((Object.keys(S.days).length?'':'Kein Wunsch gesendet. · ')+'Zuletzt gesendet: '+new Date(r.updated).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})):'';
+  }).catch(function(){$('smsg').textContent=err('net');$('smsg').className='msg err';});
+}
+function enter(){
+  $('hello').textContent='Hallo '+S.name;show('app');monthDefault();loadMonth();
+}
+function logout(){forget();S.name='';S.pin='';show('login');}
+function login(name,pin,silent){
+  $('lmsg').textContent='';
+  return rpc('wunsch_get',{p_name:name,p_pin:pin,p_month:key(now.getFullYear(),now.getMonth())}).then(function(r){
+    if(!r.ok){if(!silent){$('lmsg').textContent=err(r.error);$('lmsg').className='msg err';}else forget();return false;}
+    S.name=name;S.pin=pin;save();enter();return true;
+  }).catch(function(){if(!silent){$('lmsg').textContent=err('net');$('lmsg').className='msg err';}return false;});
+}
+function init(){
+  if(!cfg.url||!cfg.key){$('off').hidden=false;return;}
+  show('login');
+  rpc('wunsch_names').then(function(names){
+    var s=$('name');s.innerHTML='<option value="">— wählen · اختر —</option>'+names.map(function(n){return '<option>'+n.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</option>';}).join('');
+    var sv=null;try{sv=JSON.parse(localStorage.getItem('wunsch-login')||'null');}catch(e){}
+    if(sv&&sv.name&&sv.pin){s.value=sv.name;login(sv.name,sv.pin,true);}
+  }).catch(function(){$('lmsg').textContent=err('net');$('lmsg').className='msg err';});
+}
+$('go').addEventListener('click',function(){var n=$('name').value,p=$('pin').value.trim();if(!n||!p){$('lmsg').textContent='Bitte Name und PIN eingeben.';$('lmsg').className='msg err';return;}login(n,p,false);});
+$('pin').addEventListener('keydown',function(e){if(e.key==='Enter')$('go').click();});
+$('out').addEventListener('click',function(){logout();});
+$('cal').addEventListener('click',function(e){var b=e.target.closest('button[data-d]');if(!b||b.disabled||!S.loaded)return;var d=+b.dataset.d;if(S.days[d])delete S.days[d];else S.days[d]=1;S.dirty=true;drawCal();$('smsg').textContent='';});
+$('note').addEventListener('input',function(){S.note=this.value;S.dirty=true;});
+function move(dm){
+  if(S.dirty&&!confirm('Änderungen wurden noch nicht gesendet. Trotzdem wechseln? · لم يتم الإرسال بعد. هل تريد المتابعة؟'))return;
+  var m=S.m+dm,y=S.y;if(m<0){m=11;y--;}if(m>11){m=0;y++;}
+  if(cmp(y,m)<0||cmp(y,m)>3)return;S.y=y;S.m=m;loadMonth();
+}
+$('prev').addEventListener('click',function(){move(-1);});
+$('next').addEventListener('click',function(){move(1);});
+$('send').addEventListener('click',function(){
+  if(!S.loaded)return;var b=$('send');b.disabled=true;$('smsg').textContent='Sendet …';$('smsg').className='msg';
+  rpc('wunsch_save',{p_name:S.name,p_pin:S.pin,p_month:key(S.y,S.m),p_days:Object.keys(S.days).map(Number),p_note:S.note}).then(function(r){
+    b.disabled=false;
+    if(!r.ok){$('smsg').textContent=err(r.error);$('smsg').className='msg err';return;}
+    S.dirty=false;$('smsg').className='msg ok';$('smsg').textContent=Object.keys(S.days).length?'Gesendet ✓ · تم الإرسال':'Gesendet: kein Wunsch ✓ · تم الإرسال: لا طلبات';
+  }).catch(function(){b.disabled=false;$('smsg').textContent=err('net');$('smsg').className='msg err';});
+});
+window.addEventListener('beforeunload',function(e){if(S.dirty){e.preventDefault();e.returnValue='';}});
+init();
+})();
+</script>
+</body>
+</html>
